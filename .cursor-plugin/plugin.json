@@ -1,7 +1,7 @@
 {
   "name": "crew",
   "version": "0.1.0",
-  "description": "Guides work from a stated goal to an approved implementation plan: intake, research, design, adversarial critique, human gate.",
+  "description": "Guides work from a stated goal to merged code: intake, research, design, adversarial critique, build, review, PR, and merge, with two human gates.",
   "author": {
     "name": "Jethro Ekozin"
   },

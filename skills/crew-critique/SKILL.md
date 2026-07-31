@@ -57,6 +57,16 @@ asked to check yours.
 Read `Alternative not considered` properly. It is the one section written free of the
 plan's framing, and it is where an approach you never evaluated shows up.
 
+## 4b. Check prose against Tasks
+
+Before Gate 1, diff the approach prose against the `Tasks` JSON. Every behavioural rule in
+one must appear in the other.
+
+They drift because a critique round tightens the prose and leaves `Tasks` alone, and
+`Tasks` is what the build phase executes — so the fix you just made never ships. This is
+not hypothetical; it happened on crew's own v2 plan, where the merge conditions were made
+safe in prose while `Tasks` still carried the unsafe predicate.
+
 ## 5. Gate 1
 
 Set `phase` to `gate1`. Present, then stop:
