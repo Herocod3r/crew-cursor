@@ -91,16 +91,30 @@ For each path changed this wave:
 
 ## 5. Verify
 
-After the guard passes, run each task's `verify` command yourself — in the worktree, in
-stable `id` order. Use the shell. Read exit codes and output.
+After the guard passes, run the wave's `verify` commands yourself, in the worktree.
+
+**Deduplicate first.** Collect the wave's `verify` strings into a set. Five tasks
+declaring `npm test` is one run, not five — and every task sharing that command passes or
+fails together on its single result.
+
+**Run the distinct commands in parallel**, except any belonging to a task flagged in §2 as
+touching shared state; those run serially, in `id` order. Everything else is independent
+by the same ownership rule that let the builders run concurrently.
+
+Read exit codes and output. A task passes only when its command was run by you and exited
+zero.
 
 | Builder verify | Orchestrator verify |
 |---|---|
 | Runs during implementation | Runs after the wave guard |
+| Sees only that builder's changes | Sees the whole wave integrated |
 | Informs the builder's fix loop | Is the wave's pass/fail |
 | Reported in builder output | Never trusted as proof |
 
-A task passes only when you ran `verify` and it exited zero.
+The re-run is not only distrust. A builder verified against a tree containing its changes
+alone; by the end of the wave its siblings have landed too, and that is a different
+question. It is also why verification is per wave rather than deferred to the end — a
+failure has to be attributable to a wave for the circuit breaker to mean anything.
 
 ## 6. Circuit breaker
 
