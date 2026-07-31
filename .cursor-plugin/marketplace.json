@@ -1,0 +1,12 @@
+{
+  "name": "crew-marketplace",
+  "owner": {
+    "name": "Jethro Ekozin"
+  },
+  "plugins": [
+    {
+      "name": "crew",
+      "source": "./"
+    }
+  ]
+}
