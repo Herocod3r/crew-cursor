@@ -1,0 +1,14 @@
+---
+description: Resume an in-flight crew run instead of starting over or skipping ahead
+alwaysApply: true
+---
+
+A `.crew/<slug>/state.json` with `phase != done` means a crew run is in flight.
+
+Before acting on work that belongs to that run, read the state file, load the `crew`
+skill, and resume at the recorded `phase`. Do not restart at intake. Do not skip ahead.
+
+- Several active runs: list slug, goal, and phase. Ask which. Never guess.
+- Unreadable or malformed state: report the path and the error. Never ignore it.
+- Never set `gates.g1` without explicit human approval.
+- Never write implementation code while `phase` is before `gate1`.

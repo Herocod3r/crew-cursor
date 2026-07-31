@@ -1,0 +1,9 @@
+{
+  "name": "crew",
+  "version": "0.1.0",
+  "description": "Guides work from a stated goal to an approved implementation plan: intake, research, design, adversarial critique, human gate.",
+  "author": {
+    "name": "Jethro Ekozin"
+  },
+  "keywords": ["workflow", "planning", "design", "critique", "agents"]
+}
