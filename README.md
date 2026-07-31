@@ -8,11 +8,45 @@ retrieve facts, write code, and attack the plan, but they never hold the design.
 
 ## Install
 
-```bash
-ln -s /Users/jethroekozin/Documents/projects/crew-cursor ~/.cursor/plugins/local/crew
+Cursor does not auto-load anything from `~/.cursor/plugins/local/`, and marketplace
+imports may be disabled by team policy. `--plugin-dir` is the mechanism that works, so
+wrap it in a shell function that expands every plugin you have linked:
+
+```zsh
+# ~/.zshrc — replaces `alias cursor="cursor-agent"`
+cursor() {
+  local -a plugin_flags
+  local d
+  for d in "$HOME"/.cursor/plugins/local/*(N-/); do
+    plugin_flags+=(--plugin-dir "${d:A}")
+  done
+  command cursor-agent "${plugin_flags[@]}" "$@"
+}
 ```
 
-Then restart Cursor, or run **Developer: Reload Window**.
+Then link this repo in and use `cursor` instead of `cursor-agent`:
+
+```bash
+mkdir -p ~/.cursor/plugins/local
+ln -s /path/to/crew-cursor ~/.cursor/plugins/local/crew
+```
+
+It must be a function, not an alias — a zsh alias of the same name shadows the function.
+
+### What loads where
+
+Tested, because the documented paths do not all behave the same:
+
+| Location | Skills | Subagents |
+|---|---|---|
+| `--plugin-dir` | yes | yes |
+| `~/.cursor/skills/` | yes | — |
+| `<repo>/.cursor/agents/` | — | yes |
+| `~/.cursor/agents/` | — | no |
+| `~/.cursor/plugins/local/` alone | no | no |
+
+The agent's ambient skill list is truncated and will not show all ten. That is cosmetic:
+every skill is invocable as `/name`, which is how crew loads its phases anyway.
 
 ## Use
 
