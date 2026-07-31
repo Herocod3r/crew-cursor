@@ -1,13 +1,13 @@
 ---
 name: crew
-description: Runs a goal through intake, research, design, and adversarial critique to an approved implementation plan. Use when starting a ticket, feature, bug, or refactor, or when resuming an in-flight crew run.
+description: Runs a goal through intake, research, design, adversarial critique, build, review, PR and merge. Use when starting a ticket, feature, bug, or refactor, or when resuming an in-flight crew run.
 disable-model-invocation: true
 ---
 
 # crew
 
-A goal in, an approved implementation plan out. You are the architect. Subagents retrieve
-and criticise; they do not design.
+A goal in, merged code out. You are the architect. Subagents retrieve, build, and
+criticise; they do not design.
 
 ```
 /crew <goal|TICKET>          new run
@@ -23,12 +23,16 @@ Run in order. Each phase is a skill. Load it and follow it.
 | 1 | `crew-intake` | preconditions verified, `state.json` seeded | never |
 | 2 | `crew-scout` | facts, with per-source status | `size: trivial` |
 | 3 | `crew-design` | `plan.md` matching the schema below | never |
-| 4 | `crew-critique` | verdict, findings, Gate 1 | `size: trivial` or `standard` |
+| 4 | `crew-critique` | verdict and findings | `size: trivial` or `standard` |
+| — | **Gate 1** | your go-ahead on the plan | never |
+| 5 | `crew-build` | the code, verified wave by wave | never |
+| 6 | `crew-review` | three lanes coalesced, findings fixed | never |
+| — | **Gate 2** | your go-ahead on the diff | never |
+| 7 | `crew-pr` | a PR, ready for review | never |
+| 8 | `crew-babysit` | CI green, threads handled, merged | never |
+| 9 | `crew-retro` | learnings routed, cleanup reported | never |
 
-Then **Gate 1**: present the plan and the verdict. Stop. Wait.
-
-Build, review, PR, babysit, merge, and retro are not implemented. After Gate 1, hand
-`plan.md` to whatever builds it.
+Two gates, both human, neither skippable. Everything between them is autonomous.
 
 ## Run selection
 
@@ -56,11 +60,13 @@ resolves under `.git/modules/`, which writes state into Git internals.
 ```json
 {
   "slug": "", "goal": "", "size": "trivial|standard|full",
-  "phase": "intake|scout|design|critique|gate1|done",
+  "phase": "intake|scout|design|critique|gate1|build|review|gate2|pr|babysit|retro|done",
   "gates": { "g1": false, "g2": false },
   "critique": { "verdict": null, "blocker": 0, "major": 0, "minor": 0, "round": 0 },
+  "waveCursor": 0,
+  "breaker": { "taskFails": {}, "runFails": 0 },
   "git": { "repoRoot": "", "worktreePath": "", "branch": "", "baseRef": "", "gitCommonDir": "" },
-  "pr": null,
+  "pr": { "url": null, "number": null, "headSha": null, "merged": false },
   "ticketRefs": [], "created": "", "updated": ""
 }
 ```
@@ -68,8 +74,8 @@ resolves under `.git/modules/`, which writes state into Git internals.
 Write `phase` on entering each phase, not on leaving it. A crash mid-phase must resume
 into that phase, not past it.
 
-`plan.md` frontmatter mirrors `slug`, `phase`, `size`, `gates`, `critique` so the human
-sees state without opening JSON. `state.json` wins on conflict.
+`plan.md` frontmatter mirrors `slug`, `phase`, `size`, `gates`, `critique`, and `pr` so
+the human sees state without opening JSON. `state.json` wins on conflict.
 
 Read and write these with your own file tools. There is no helper script.
 
@@ -88,11 +94,18 @@ Read and write these with your own file tools. There is no helper script.
 
 ```json
 [
-  { "id": "t1", "files": ["path/a"], "instruction": "", "verify": "", "needs": [] }
+  { "id": "t1", "files": ["path/a"], "generates": [], "instruction": "", "verify": "", "needs": [] }
 ]
 ```
 
-One owner per file across the whole array. `needs` yields waves by topological sort.
+| Field | Meaning |
+|---|---|
+| `files` | Files the task authors. |
+| `generates` | Files it produces but does not author — lockfiles, generated code, snapshots. Optional, defaults to empty. |
+
+Ownership is `files ∪ generates`, and it drives everything: parallel dispatch, the
+post-wave changed-file guard, and PR staging. One owner per union across the whole array.
+`needs` yields waves by topological sort.
 
 Never write a requirement-to-task coverage map. Never write code samples for every
 interface. That combination is what made the predecessor's designs bloated and generic.
@@ -101,11 +114,14 @@ interface. That combination is what made the predecessor's designs bloated and g
 
 Set at intake. Default `standard`.
 
-| Size | Runs | Criteria |
+Size gates only the research and critique phases. Everything from build onward always
+runs — a run ends at merged code regardless of size.
+
+| Size | Skips | Criteria |
 |---|---|---|
-| trivial | 1, 3 | Syntactic only, all conditions below |
-| standard | 1, 2, 3 | Default |
-| full | 1, 2, 3, 4 | Any trigger below |
+| trivial | scout and critique | Syntactic only, all conditions below |
+| standard | critique | Default |
+| full | nothing | Any trigger below |
 
 **Triggers**, any one: money, auth, PII, data migration, public API, concurrency,
 idempotency, background jobs, cross-service boundaries, feature flags, irreversible
@@ -132,9 +148,28 @@ Present, then stop:
 Set `gates.g1` only after the human says go. Never infer approval from silence, from a
 question, or from a comment about something else.
 
+On approval: set `phase` to `build`. Load and follow `crew-build`.
+
+## Gate 2
+
+After review, before the PR. Present, then stop:
+
+- What changed, by file
+- Coalesced findings: what was fixed, what was not, and why
+- Anything the circuit breaker stopped
+- Anything review raised that two fix rounds did not close
+
+Set `gates.g2` only after the human says go. Same rule as Gate 1: silence is not approval.
+
+Everything after Gate 2 is outward-facing — a push, a PR, a merge. That is what the gate
+is for.
+
 ## Never
 
-- Never write code before Gate 1. This skill produces a plan.
+- Never write code before Gate 1.
+- Never push, open a PR, or merge before Gate 2.
+- Never merge a commit no approving review points at.
+- Never resolve a review thread. Only the reviewer closes their own objection.
 - Never create, move, or delete a worktree or branch. The human owns that lifecycle.
 - Never design on a silent assumption. Close it, ask, or record it in `Assumptions`.
 - Never claim a design is fact-grounded when a source it depends on returned anything but `ok`.

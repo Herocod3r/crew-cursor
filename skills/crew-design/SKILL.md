@@ -52,11 +52,16 @@ To the schema in the `crew` skill, at `<repoRoot>/.crew/<slug>/plan.md`.
 
 ```json
 [
-  { "id": "t1", "files": ["path/a"], "instruction": "", "verify": "", "needs": [] }
+  { "id": "t1", "files": ["path/a"], "generates": [], "instruction": "", "verify": "", "needs": [] }
 ]
 ```
 
-One owner per file across the array. `needs` yields waves by topological sort. Every task
+`generates` lists files the task produces but does not author — lockfiles, generated code,
+snapshots. Optional, defaults to empty. Ownership is `files ∪ generates`, and the build and
+PR phases key on that union, so a task that will touch a lockfile must say so here or the
+build stops on an unowned change.
+
+One owner per union across the array. `needs` yields waves by topological sort. Every task
 carries a real verify command — a task with nothing to run is a task nobody can check.
 
 ## Anti-bloat
@@ -70,6 +75,18 @@ That pressure is what made its designs long and generic. Do not reproduce it.
 - Never restate the goal in three sections.
 - Never pad `Decisions` with choices nobody would question.
 - Length is not thoroughness. A plan that fits on a screen and is right beats four pages that hedge.
+
+## Prose and Tasks drift
+
+The `Tasks` JSON is what the build phase executes. The prose is what humans read. They are
+two sources of truth and they drift.
+
+Revise both in the same edit, always. A critique round that tightens a rule in the prose
+and leaves the old rule in `Tasks` has changed nothing — the builders follow `Tasks`.
+
+This is not hypothetical. It happened on crew's own v2 plan: the merge conditions were
+made safe in the prose while `Tasks` still carried the unsafe predicate, and only a second
+critique round caught it. Check the two against each other before every gate.
 
 ## Next
 
