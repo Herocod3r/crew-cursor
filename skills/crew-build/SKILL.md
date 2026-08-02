@@ -48,7 +48,8 @@ When serializing, run tasks in stable `id` order within the wave slot.
 
 ## 3. Dispatch
 
-For each task in the current wave, dispatch `crew-builder` (`composer-2.5-fast`).
+For each task in the current wave, dispatch `crew-builder` by `subagent_type` alone. Its
+model is pinned in `agents/crew-builder.md`; never pass a model parameter.
 
 Pass: task `id`, full task spec (`files`, `generates`, `instruction`, `verify`), plan path,
 worktree path from `state.json.git.worktreePath`.

@@ -12,12 +12,18 @@ plan gets a passing grade. The critic is a different family on purpose.
 
 ## 1. Dispatch
 
-Dispatch the `crew-critic` subagent (`gpt-5.5-extra-high-fast`) over `plan.md`.
+Dispatch the `crew-critic` subagent over `plan.md`, **by `subagent_type` alone**.
+
+Never pass a model parameter. The model is pinned in `agents/crew-critic.md`, and the
+Task tool's model enum does not contain `gpt-5.5-extra-high-fast` — naming it explicitly
+is rejected, reads back as "model unavailable", and sends this phase down the fallback
+chain into a same-family critique while the correct model was available all along.
 
 Give it: the plan path, the repository, and permission to read anything the plan cites.
 A critic that cannot check a citation cannot catch a false premise.
 
-**Fallback**, in order:
+**Fallback** applies only when the dispatch itself fails, never when a model parameter was
+rejected — that is a dispatch bug, not an unavailable model. In order:
 
 1. `gpt-5.5-extra-high-fast`
 2. Any available top-effort model from a family different to yours

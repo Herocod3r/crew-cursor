@@ -98,7 +98,8 @@ You may reject a finding. Rejecting is a decision — note it for Gate 2 with yo
 
 ## 3. Fix loop
 
-Dispatch `crew-builder` (`composer-2.5-fast`) for each fix. One finding per dispatch when
+Dispatch `crew-builder` by `subagent_type` alone for each fix — its model is pinned in its
+agent definition, so never pass a model parameter. One finding per dispatch when
 fixes touch different files; batch only when the same builder owns every path.
 
 Pass: the finding (location, problem, suggested fix), the owning task id if known, plan
