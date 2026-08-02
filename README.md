@@ -59,10 +59,19 @@ That is literal, not an omission — `model` and `readonly` are **silently dropp
 | `readonly: true` | honoured | **ignored** |
 | `model:` | honoured | **ignored** — inherits the parent's model |
 
-Verified: an agent pinned to a nonexistent model dispatched successfully rather than
-erroring; one pinned to a different family reported the parent's family; and a
-`readonly: true` agent wrote a file under `--plugin-dir` while refusing to under
-`.cursor/agents/`.
+Verified by A/B — the *same* agent file, differing only in location, with the parent on
+Composer and the agent pinned to `gpt-5.5-extra-high-fast`:
+
+| Location | Child reports | `readonly: true` agent asked to write |
+|---|---|---|
+| `.cursor/agents/` | `OpenAI/GPT` | refuses |
+| `--plugin-dir` | `Cursor/Composer` | writes the file |
+
+This is not the documented fallback for admin-blocked or plan-limited models: the same
+model resolves correctly from the project directory, so nothing is blocking it.
+
+`~/.cursor/agents/` is documented as a user-level location but did not load at all in
+testing, so there is no global path that preserves the full schema.
 
 Two consequences for crew. The critic runs as a `cursor-agent --model` subprocess rather
 than a subagent, because that is the only way to pin a different model family — a
