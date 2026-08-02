@@ -39,6 +39,11 @@ validation is how bad plans survive review. Act like the outsider you are.
 ## Output
 
 ```
+## Model
+Your model family in one word: OpenAI, Anthropic, Composer, or Google. Report what you
+know about yourself. The orchestrator compares this against its own family to detect a
+same-family critique, which is the failure this role exists to prevent.
+
 ## Verdict
 BLOCK | REVISE | PROCEED. One sentence.
 

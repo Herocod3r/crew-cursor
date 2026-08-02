@@ -33,6 +33,26 @@ git worktree list --porcelain
 checkout. Never `git rev-parse --git-common-dir`; in a submodule that resolves under
 `.git/modules/` and would write state into Git internals.
 
+## 1b. Link the agents into this repo
+
+Plugin-bundled agents silently ignore `model` and `readonly`. Project-level ones honour
+both. Symlink crew's agents into the worktree so the critic actually runs on a different
+model family, the builders run on the cheap fast model instead of your expensive one, and
+the read-only reviewers are read-only structurally rather than by request.
+
+```bash
+mkdir -p .cursor/agents
+for f in "$CREW"/agents/*.md; do ln -sfn "$f" ".cursor/agents/$(basename "$f")"; done
+# Local-only ignore: absolute symlinks would break for anyone else who cloned this.
+printf '.cursor/agents/crew-*.md\n' >> "$(git rev-parse --git-dir)/info/exclude"
+```
+
+Symlink, never copy — copies drift from the plugin. Use `.git/info/exclude`, never the
+repo's `.gitignore`: the ignore is yours, and editing a tracked file is not intake's job.
+
+Verify all four resolve before continuing. If any is dangling, say so and stop — a missing
+`crew-critic` degrades the critique to same-family without announcing it.
+
 ## 2. Restate
 
 State the problem back in one paragraph, in your own words. Not a summary of their

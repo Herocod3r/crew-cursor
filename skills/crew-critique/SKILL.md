@@ -12,36 +12,39 @@ plan gets a passing grade. The critic is a different family on purpose.
 
 ## 1. Dispatch
 
-Run the critic as a **`cursor-agent` subprocess with an explicit `--model`**. Do not
-dispatch it with the Task tool.
+Dispatch the `crew-critic` subagent over `plan.md`, by `subagent_type` alone. Never pass a
+model parameter — the Task enum holds only `composer-2.5-fast` and
+`claude-opus-5-thinking-max-fast`, so naming the critic's model gets it rejected.
 
-Subagents inherit the parent's model. The `model:` field in `agents/crew-critic.md` is not
-honoured for plugin-provided agents — a probe pinned to a nonexistent model dispatched
-successfully instead of erroring, and a probe pinned to a different family reported the
-parent's family. A Task-dispatched critic is therefore *always* same-family, the precise
-failure this phase exists to prevent. The Task `model` enum cannot rescue it either: it
-holds only `composer-2.5-fast` and `claude-opus-5-thinking-max-fast`.
+The model comes from `agents/crew-critic.md`, which works **only because intake symlinked
+the agents into `.cursor/agents/`**. Plugin-bundled agents silently ignore `model`, so
+without that link the critic runs on your model and the critique is same-family.
 
-The CLI accepts any model from `cursor-agent --list-models`. That is the whole reason for
-the subprocess.
+Give it the plan path and permission to read anything the plan cites. A critic that cannot
+check a citation cannot catch a false premise.
+
+### Verify the critique was actually independent
+
+The critic's first output section reports its model family. Compare it against yours.
+
+| Result | Action |
+|---|---|
+| Different family | Proceed. |
+| Same family | Say so at Gate 1, plainly, and record the critique as weakened. |
+
+Do this every round. The failure is silent by construction — a same-family critic returns
+a confident, well-formatted, agreeable review, and nothing else signals the problem.
+
+**Fallback** if the agents are not linked and you cannot link them:
 
 ```bash
-CRITIC=$(mktemp /tmp/crew-critic-XXXX.md)
-# Persona = the agent file's body, minus frontmatter.
-awk 'BEGIN{n=0} /^---$/{n++; next} n>=2' "$CREW/agents/crew-critic.md" > "$CRITIC"
-cat >> "$CRITIC" <<EOF
-
-# Your task
-Review the plan at $PLAN. Read the code and evidence it cites, and verify the citations.
-<what to attack, specific to this plan>
-Follow your output format exactly, including "Alternative not considered".
-EOF
-
 cursor-agent -p --model gpt-5.5-extra-high-fast --plan --auto-review --trust \
-  --workspace "$WORKTREE" "$(cat "$CRITIC")"
+  --workspace "$WORKTREE" "$(cat "$CRITIC_PROMPT")"
 ```
 
-`--plan` holds it read-only; a write attempt is refused even under `--trust`.
+where `$CRITIC_PROMPT` is the body of `agents/crew-critic.md` minus frontmatter, plus the
+task. The CLI accepts any model from `cursor-agent --list-models`, unlike the Task enum.
+Slower and without shared context, but genuinely cross-family.
 
 **Never shell out to the `codex` CLI**, and never invoke a skill that wraps it. Other
 skills on this machine advertise Codex as the route to an adversarial second opinion, some

@@ -73,12 +73,17 @@ model resolves correctly from the project directory, so nothing is blocking it.
 `~/.cursor/agents/` is documented as a user-level location but did not load at all in
 testing, so there is no global path that preserves the full schema.
 
-Two consequences for crew. The critic runs as a `cursor-agent --model` subprocess rather
-than a subagent, because that is the only way to pin a different model family — a
-Task-dispatched critic would silently be same-family, defeating the point of having one.
-And the read-only reviewers rest on the `Do NOT` lists in their prompts rather than on
-`readonly: true`. Install the agents into a repo's `.cursor/agents/` if you want either
-enforced structurally.
+So `crew-intake` symlinks the agents into the worktree's `.cursor/agents/` and adds a
+local-only ignore in `.git/info/exclude`. Symlinks work there and the pin survives them,
+which keeps the plugin as the single source of truth while restoring the full schema:
+
+- the critic genuinely runs on a different model family
+- builders run on `composer-2.5-fast` instead of your expensive parent model
+- the read-only reviewers are read-only structurally, not by request
+
+Because this failure is silent, `crew-critique` also has the critic report its own model
+family and compares it against the orchestrator's. A same-family critic returns a
+confident, agreeable review and nothing else gives it away.
 
 ## Use
 
