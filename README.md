@@ -77,13 +77,24 @@ That is literal, not an omission — `model` and `readonly` are **silently dropp
 | `readonly: true` | honoured | **ignored** |
 | `model:` | honoured | **ignored** — inherits the parent's model |
 
-Verified by A/B — the *same* agent file, differing only in location, with the parent on
-Composer and the agent pinned to `gpt-5.5-extra-high-fast`:
+Verified by A/B on the *same* agent file, differing only in location, with the parent on
+Composer. Read the dispatch off the wire rather than asking the subagent what it is:
 
-| Location | Child reports | `readonly: true` agent asked to write |
+```bash
+cursor-agent -p --output-format stream-json ... \
+  | jq -r 'select(.type=="tool_call") | .tool_call.taskToolCall.args.model'
+```
+
+| Location | `model` on the wire | `readonly: true` agent asked to write |
 |---|---|---|
-| `.cursor/agents/` | `OpenAI/GPT` | refuses |
-| `--plugin-dir` | `Cursor/Composer` | writes the file |
+| `.cursor/agents/` | the pinned model | refuses |
+| `--plugin-dir` | the **parent's** model | writes the file |
+
+Do not ask a subagent which model it is. Self-reports are unreliable and gave
+contradictory answers for identical setups — the same plugin agent claimed "Composer"
+twice and "OpenAI" once. Latency corroborates the wire: pinning a plugin agent to a flash
+model versus a max-thinking model produced no meaningful difference, because both ran on
+the parent.
 
 This is not the documented fallback for admin-blocked or plan-limited models: the same
 model resolves correctly from the project directory, so nothing is blocking it.
