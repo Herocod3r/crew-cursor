@@ -8,6 +8,24 @@ retrieve facts, write code, and attack the plan, but they never hold the design.
 
 ## Install
 
+```bash
+git clone https://github.com/Herocod3r/crew-cursor && cd crew-cursor
+./install.sh            # link the plugin
+./install.sh shell      # add the cursor() function to your shell rc
+source ~/.zshrc
+
+cd /path/to/your/repo
+/path/to/crew-cursor/install.sh agents   # once per repo you run crew in
+```
+
+`./install.sh doctor` checks every part of the install.
+
+Two steps because Cursor loads skills and agents differently, and the per-repo one is not
+optional — it is what makes the critic run on a different model family and the builders
+run on the cheap one. The rest of this section is why.
+
+### Why the shell function
+
 Cursor does not auto-load anything from `~/.cursor/plugins/local/`, and marketplace
 imports may be disabled by team policy. `--plugin-dir` is the mechanism that works, so
 wrap it in a shell function that expands every plugin you have linked:
