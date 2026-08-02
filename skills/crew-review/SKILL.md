@@ -53,8 +53,8 @@ Same prompt shape as `bugbot`.
 
 ### crew-conformance
 
-Launch exactly one `crew-conformance` subagent (`claude-opus-5-thinking-high`,
-`readonly: true`).
+Launch exactly one `crew-conformance` subagent, by `subagent_type` alone. Its model and
+`readonly: true` are pinned in `agents/crew-conformance.md`; never pass a model parameter.
 
 Pass: plan path (`<repoRoot>/.crew/<slug>/plan.md`), worktree path. The agent reads the
 diff itself. Follow its output format in `agents/crew-conformance.md`.
