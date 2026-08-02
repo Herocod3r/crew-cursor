@@ -48,6 +48,29 @@ Tested, because the documented paths do not all behave the same:
 The agent's ambient skill list is truncated and will not show all ten. That is cosmetic:
 every skill is invocable as `/name`, which is how crew loads its phases anyway.
 
+### Plugin agents get a reduced schema
+
+Cursor's plugin reference lists only `name` and `description` for plugin-bundled agents.
+That is literal, not an omission — `model` and `readonly` are **silently dropped**:
+
+| Field | Project `.cursor/agents/` | Plugin `--plugin-dir` |
+|---|---|---|
+| `name`, `description` | honoured | honoured |
+| `readonly: true` | honoured | **ignored** |
+| `model:` | honoured | **ignored** — inherits the parent's model |
+
+Verified: an agent pinned to a nonexistent model dispatched successfully rather than
+erroring; one pinned to a different family reported the parent's family; and a
+`readonly: true` agent wrote a file under `--plugin-dir` while refusing to under
+`.cursor/agents/`.
+
+Two consequences for crew. The critic runs as a `cursor-agent --model` subprocess rather
+than a subagent, because that is the only way to pin a different model family — a
+Task-dispatched critic would silently be same-family, defeating the point of having one.
+And the read-only reviewers rest on the `Do NOT` lists in their prompts rather than on
+`readonly: true`. Install the agents into a repo's `.cursor/agents/` if you want either
+enforced structurally.
+
 ## Use
 
 ```

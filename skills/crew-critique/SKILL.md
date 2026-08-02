@@ -12,34 +12,52 @@ plan gets a passing grade. The critic is a different family on purpose.
 
 ## 1. Dispatch
 
-Dispatch the `crew-critic` subagent over `plan.md`, **by `subagent_type` alone**.
+Run the critic as a **`cursor-agent` subprocess with an explicit `--model`**. Do not
+dispatch it with the Task tool.
 
-Never pass a model parameter. The model is pinned in `agents/crew-critic.md`, and the
-Task tool's model enum does not contain `gpt-5.5-extra-high-fast` — naming it explicitly
-is rejected, reads back as "model unavailable", and sends this phase down the fallback
-chain into a same-family critique while the correct model was available all along.
+Subagents inherit the parent's model. The `model:` field in `agents/crew-critic.md` is not
+honoured for plugin-provided agents — a probe pinned to a nonexistent model dispatched
+successfully instead of erroring, and a probe pinned to a different family reported the
+parent's family. A Task-dispatched critic is therefore *always* same-family, the precise
+failure this phase exists to prevent. The Task `model` enum cannot rescue it either: it
+holds only `composer-2.5-fast` and `claude-opus-5-thinking-max-fast`.
 
-Give it: the plan path, the repository, and permission to read anything the plan cites.
-A critic that cannot check a citation cannot catch a false premise.
+The CLI accepts any model from `cursor-agent --list-models`. That is the whole reason for
+the subprocess.
 
-**Fallback** applies only when the dispatch itself fails, never when a model parameter was
-rejected — that is a dispatch bug, not an unavailable model. In order:
+```bash
+CRITIC=$(mktemp /tmp/crew-critic-XXXX.md)
+# Persona = the agent file's body, minus frontmatter.
+awk 'BEGIN{n=0} /^---$/{n++; next} n>=2' "$CREW/agents/crew-critic.md" > "$CRITIC"
+cat >> "$CRITIC" <<EOF
 
-1. `gpt-5.5-extra-high-fast`
-2. Any available top-effort model from a family different to yours
-3. Same family — but warn the human first, explicitly, and say the critique is weakened
+# Your task
+Review the plan at $PLAN. Read the code and evidence it cites, and verify the citations.
+<what to attack, specific to this plan>
+Follow your output format exactly, including "Alternative not considered".
+EOF
+
+cursor-agent -p --model gpt-5.5-extra-high-fast --plan --auto-review --trust \
+  --workspace "$WORKTREE" "$(cat "$CRITIC")"
+```
+
+`--plan` holds it read-only; a write attempt is refused even under `--trust`.
+
+**Never shell out to the `codex` CLI**, and never invoke a skill that wraps it. Other
+skills on this machine advertise Codex as the route to an adversarial second opinion, some
+matching on the phrase "second opinion" itself, and this phase is where that pull is
+strongest. Independence comes from a different *model family*, not from Codex, and
+`cursor-agent --model` supplies it while keeping the output contract below.
+
+**Fallback**, in order. Only on genuine failure — a rejected model parameter is a dispatch
+bug, not an unavailable model.
+
+1. `cursor-agent --model gpt-5.5-extra-high-fast`
+2. `cursor-agent --model` with any available top-effort model from a different family
+3. A Task subagent, which is same-family — warn the human explicitly and record the
+   critique as weakened at Gate 1
 
 Never run a same-family critique silently.
-
-**Dispatch a Cursor subagent. Never shell out to the `codex` CLI**, and never invoke a
-skill that wraps it. Other skills on this machine advertise Codex as the way to get an
-adversarial second opinion — some match on the phrase "second opinion" itself — and this
-phase is exactly where that pull is strongest. It is the wrong tool here: a CLI
-subprocess cannot be pinned to a model crew chose, does not inherit the session's tools or
-MCP servers, and returns unstructured text instead of the verdict contract below.
-
-The requirement is a *different model family*, which `gpt-5.5-extra-high-fast` already
-satisfies. Codex is not what makes the critique independent.
 
 ## 2. Read the verdict
 
