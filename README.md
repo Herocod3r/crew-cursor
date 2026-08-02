@@ -88,8 +88,17 @@ Composer and the agent pinned to `gpt-5.5-extra-high-fast`:
 This is not the documented fallback for admin-blocked or plan-limited models: the same
 model resolves correctly from the project directory, so nothing is blocking it.
 
-`~/.cursor/agents/` is documented as a user-level location but did not load at all in
-testing, so there is no global path that preserves the full schema.
+`~/.cursor/agents/` is documented as a user-level location that applies to all projects.
+**In the CLI it does not load** — verified with minimal and full frontmatter, in both
+`~/.cursor/agents/` and `~/.claude/agents/`, while a project-level control loaded in the
+same breath. Two long-standing user-level agents were also absent from an IDE session's
+subagent list, though both sat in the `.claude` compat path rather than `.cursor`, so the
+IDE case for `~/.cursor/agents/` is untested rather than disproved.
+
+`install.sh` links there anyway. It costs nothing if ignored, and if the IDE does honour
+it you get the full schema globally and can skip the per-repo step. `./install.sh doctor`
+says which is true for you. To check the IDE: restart it, then ask an agent to list the
+subagent types it can dispatch.
 
 So `crew-intake` symlinks the agents into the worktree's `.cursor/agents/` and adds a
 local-only ignore in `.git/info/exclude`. Symlinks work there and the pin survives them,

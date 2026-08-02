@@ -77,6 +77,17 @@ install_shell() {
   fi
 }
 
+install_user_agents() {
+  # Documented as loading for all projects. It does NOT load in the CLI — verified
+  # with minimal and full frontmatter in both ~/.cursor/agents/ and ~/.claude/agents/.
+  # Untested in the IDE. Linking costs nothing if ignored and removes the per-repo
+  # step if it works, so do it and let `doctor` report the truth.
+  mkdir -p "$HOME/.cursor/agents"
+  local f
+  for f in "$CREW"/agents/*.md; do ln -sfn "$f" "$HOME/.cursor/agents/$(basename "$f")"; done
+  ok "agents linked into ~/.cursor/agents/ (works in the IDE only, if at all)"
+}
+
 install_agents() {
   local target="${1:-$PWD}"
   target="$(cd "$target" && pwd)"
@@ -120,6 +131,19 @@ doctor() {
   fi
   command -v cursor-agent >/dev/null && ok "cursor-agent on PATH" || bad "cursor-agent not found"
   echo
+  echo "User-level agents (~/.cursor/agents/):"
+  if [ -L "$HOME/.cursor/agents/crew-critic.md" ]; then
+    ok "linked"
+    if command -v cursor-agent >/dev/null; then
+      if cursor-agent --help >/dev/null 2>&1; then
+        warn "not loaded by the CLI — verified; per-repo linking is still required there"
+        warn "in the IDE: restart, then ask an agent to list subagents starting with 'crew'"
+      fi
+    fi
+  else
+    warn "not linked — run: ./install.sh"
+  fi
+  echo
   echo "This repo (agents):"
   if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     local missing=0 f n
@@ -150,6 +174,7 @@ case "${1:-}" in
   ""|install)
     echo "crew install"; echo
     link_plugin
+    install_user_agents
     echo
     echo "Two steps left:"
     echo "  1. ./install.sh shell           # so 'cursor' loads the plugin"
