@@ -25,6 +25,16 @@ A critic that cannot check a citation cannot catch a false premise.
 
 Never run a same-family critique silently.
 
+**Dispatch a Cursor subagent. Never shell out to the `codex` CLI**, and never invoke a
+skill that wraps it. Other skills on this machine advertise Codex as the way to get an
+adversarial second opinion — some match on the phrase "second opinion" itself — and this
+phase is exactly where that pull is strongest. It is the wrong tool here: a CLI
+subprocess cannot be pinned to a model crew chose, does not inherit the session's tools or
+MCP servers, and returns unstructured text instead of the verdict contract below.
+
+The requirement is a *different model family*, which `gpt-5.5-extra-high-fast` already
+satisfies. Codex is not what makes the critique independent.
+
 ## 2. Read the verdict
 
 | Verdict | Meaning |
@@ -83,6 +93,7 @@ question, or from a comment about something else.
 ## Never
 
 - Never run a same-family critique without warning.
+- Never shell out to the `codex` CLI, or invoke a skill that wraps it. Dispatch a subagent.
 - Never exceed two critique rounds.
 - Never accept a finding without checking it.
 - Never reject a finding without recording why.
