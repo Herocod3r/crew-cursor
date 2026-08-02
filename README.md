@@ -88,17 +88,36 @@ Composer and the agent pinned to `gpt-5.5-extra-high-fast`:
 This is not the documented fallback for admin-blocked or plan-limited models: the same
 model resolves correctly from the project directory, so nothing is blocking it.
 
-`~/.cursor/agents/` is documented as a user-level location that applies to all projects.
-**In the CLI it does not load** — verified with minimal and full frontmatter, in both
-`~/.cursor/agents/` and `~/.claude/agents/`, while a project-level control loaded in the
-same breath. Two long-standing user-level agents were also absent from an IDE session's
-subagent list, though both sat in the `.claude` compat path rather than `.cursor`, so the
-IDE case for `~/.cursor/agents/` is untested rather than disproved.
+`~/.cursor/agents/` is documented as applying to all projects. **In the CLI it does not
+load.** The Task tool's schema is the proof — force a dispatch and the error enumerates
+what is actually registered:
 
-`install.sh` links there anyway. It costs nothing if ignored, and if the IDE does honour
-it you get the full schema globally and can skip the per-repo step. `./install.sh doctor`
-says which is true for you. To check the IDE: restart it, then ask an agent to list the
-subagent types it can dispatch.
+```
+subagent_type: Invalid enum value.
+Expected 'generalPurpose' | 'cursor-guide' | 'bugbot' | 'security-review' |
+'best-of-n-runner' | 'agent-creator' | 'plugin-validator' | 'skill-reviewer',
+received 'crew-critic'
+```
+
+That is with all four agents sitting in `~/.cursor/agents/`. They never enter the enum, so
+this is not the list truncation that affects skills. CLI `2026.07.23-e383d2b`.
+
+Precedence, when the same agent name arrives from two places at once:
+
+| Sources present | Enum | Which wins |
+|---|---|---|
+| user only | built-ins only | — |
+| `--plugin-dir` only | + crew agents | plugin, reduced schema |
+| `--plugin-dir` + project | + crew agents | **project**, full schema |
+
+The last row is what makes this work: the shell function passes `--plugin-dir` on every
+invocation, and the project-level symlinks still take precedence over it. Verified — with
+both present, the critic reports OpenAI rather than the parent's Composer.
+
+`install.sh` links user-level too, since it costs nothing if ignored and would remove the
+per-repo step if the IDE honours it. Untested there: `~/.cursor/agents/` was empty when
+the session that would have shown it began. Restart Cursor and ask an agent to list its
+subagent types to find out.
 
 So `crew-intake` symlinks the agents into the worktree's `.cursor/agents/` and adds a
 local-only ignore in `.git/info/exclude`. Symlinks work there and the pin survives them,
