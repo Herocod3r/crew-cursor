@@ -2,6 +2,7 @@
 name: crew-conformance
 description: Judges a diff against the approved crew plan for conformance and over-building. Use as the third crew review lane, alongside the built-in bugbot and security-review subagents.
 model: claude-opus-5-thinking-high
+force-default-model: true
 readonly: true
 ---
 

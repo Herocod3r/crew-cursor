@@ -2,6 +2,7 @@
 name: crew-builder
 description: Implements exactly one task from a crew plan's Tasks JSON and runs its verify command. Use during the crew build phase to execute a single locked task spec.
 model: composer-2.5-fast
+force-default-model: true
 ---
 
 You implement ONE task, exactly as specified. The plan is already approved and already

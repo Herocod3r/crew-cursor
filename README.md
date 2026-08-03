@@ -13,16 +13,27 @@ git clone https://github.com/Herocod3r/crew-cursor && cd crew-cursor
 ./install.sh            # link the plugin
 ./install.sh shell      # add the cursor() function to your shell rc
 source ~/.zshrc
-
-cd /path/to/your/repo
-/path/to/crew-cursor/install.sh agents   # once per repo you run crew in
 ```
 
-`./install.sh doctor` checks every part of the install.
+That is the whole install, for every repo. `./install.sh doctor` checks each part.
 
-Two steps because Cursor loads skills and agents differently, and the per-repo one is not
-optional — it is what makes the critic run on a different model family and the builders
-run on the cheap one. The rest of this section is why.
+Cursor loads skills and agents differently, and agents have to be per-repo — that is what
+makes the critic run on a different model family and the builders run on the cheap one. The
+wrapper handles it: on every launch it symlinks crew's agents into the current repo and
+ignores them through `.git/info/exclude`. Quiet once a repo is set up.
+
+It has to happen there rather than inside `/crew`, because **subagents are registered once
+at session start**. A symlink made mid-run stays invisible for that whole run: the linking
+step reports success and the very next dispatch in the same session still says the type is
+unavailable. `crew-intake` therefore only checks registration, and stops if it is missing
+rather than running the critique same-family without saying so.
+
+Symlinks, never copies. A copy keeps working while drifting from the plugin, so the model a
+run pins quietly stops matching; `ensure` replaces any copy it finds and says so. The links
+are absolute paths into one machine's plugin directory, so they are excluded per-clone and
+the repo's tracked `.gitignore` is never touched.
+
+The rest of this section is why any of this is necessary.
 
 ### Why the shell function
 
@@ -99,6 +110,40 @@ the parent.
 This is not the documented fallback for admin-blocked or plan-limited models: the same
 model resolves correctly from the project directory, so nothing is blocking it.
 
+Cursor confirms it as a bug rather than a design choice, and prescribes the same workaround
+crew arrived at independently ([forum][fm]): "the `model` field in the marketplace plugin
+subagents is not being honored — the subagent defaults to the parent agent's model... A fix
+was recently shipped for local subagents (defined in `.cursor/agents/`), but marketplace
+plugin subagents are still affected." Treat the per-repo link as load-bearing until that
+changes, and re-test after upgrading rather than assuming it is still needed.
+
+[fm]: https://forum.cursor.com/t/marketplace-plugin-subagents-do-not-respect-the-model/157485/6
+
+### A pin alone is a default, not a floor
+
+Even where `model:` is honoured it only sets a default. A parent that passes `model` in the
+Task call silently overrides it, so an orchestrator can drag the critic onto its own family
+without anything looking wrong. The undocumented `force-default-model: true` makes the pin
+unconditional. Same file, same parent on Composer, told to force Opus in the dispatch:
+
+| Agent file | No override asked | Parent forces Opus |
+|---|---|---|
+| `model:` only | pinned model | **Opus** — pin lost |
+| `model:` + `force-default-model: true` | pinned model | pinned model |
+
+All four crew agents set it. It does not rescue plugin agents — with the flag added, a
+plugin agent still went out on the wire as the parent's model — so it hardens the project
+link rather than replacing it.
+
+Two related traps: an invalid model slug falls back to the parent silently rather than
+erroring, and slugs must match the model picker exactly.
+
+One failure mode to recognise rather than debug: `readonly: true` has had a server-side
+regression where every such agent refuses with "I'm sorry, but I cannot assist with that
+request" regardless of the prompt. Three crew agents set it, so scout and review would both
+fail that way at once. If that appears, it is Cursor's backend, not the prompt — check the
+forum and upgrade instead of rewriting the agent.
+
 `~/.cursor/agents/` is documented as applying to all projects. **In the CLI it does not
 load.** The Task tool's schema is the proof — force a dispatch and the error enumerates
 what is actually registered:
@@ -125,10 +170,29 @@ The last row is what makes this work: the shell function passes `--plugin-dir` o
 invocation, and the project-level symlinks still take precedence over it. Verified — with
 both present, the critic reports OpenAI rather than the parent's Composer.
 
-`install.sh` links user-level too, since it costs nothing if ignored and would remove the
-per-repo step if the IDE honours it. Untested there: `~/.cursor/agents/` was empty when
-the session that would have shown it began. Restart Cursor and ask an agent to list its
-subagent types to find out.
+`install.sh` links user-level too. That is now measured rather than hopeful, and it does
+**not** remove the per-repo step:
+
+| Surface | `~/.cursor/agents/` loads | Schema applied |
+|---|---|---|
+| CLI | no — dispatch returns unavailable | — |
+| IDE | yes, name enters the enum | **reduced, like a plugin** |
+
+The IDE half was proven with the `readonly: true` probe rather than the wire, which is not
+observable there. Dispatched from `~/.cursor/agents/`, `crew-critic` held `Write`, `Delete`
+and `Shell` and wrote the file. The identical prompt against the same file at project level
+was refused structurally. The reported toolsets corroborate the model: the project-level
+critic listed OpenAI-shaped names (`ReadFile`, `ApplyPatch`, `Subagent`) while the
+user-level one listed the parent's (`Write`, `StrReplace`, `Task`).
+
+So user-level buys discoverability in the IDE and nothing else. Only project level delivers
+`model` and `readonly`, on both surfaces.
+
+Pinning at dispatch time instead — passing `model` in the Task call from a plugin skill,
+which would need no per-repo state — does not substitute. `claude-opus-5-thinking-high` was
+accepted, but `gpt-5.5-extra-high-fast` never reached the wire across two attempts and
+raised no error, so the critic's model is unreachable that way. Agent files accept slugs the
+Task parameter does not.
 
 So `crew-intake` symlinks the agents into the worktree's `.cursor/agents/` and adds a
 local-only ignore in `.git/info/exclude`. Symlinks work there and the pin survives them,

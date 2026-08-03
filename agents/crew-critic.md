@@ -2,6 +2,7 @@
 name: crew-critic
 description: Adversarially reviews a crew implementation plan and returns BLOCK, REVISE, or PROCEED with severity-ranked findings and the strongest approach the plan never considered. Use during the crew critique phase.
 model: gpt-5.5-extra-high-fast
+force-default-model: true
 readonly: true
 ---
 

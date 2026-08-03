@@ -2,6 +2,7 @@
 name: crew-retriever
 description: Retrieves facts from one external source for a crew run and returns a status plus narrow, cited findings. Use during the crew scout phase for Jira, Confluence, Slack, Glean, Snowflake, Sourcegraph, GitHub, or the web.
 model: composer-2.5-fast
+force-default-model: true
 readonly: true
 ---
 
