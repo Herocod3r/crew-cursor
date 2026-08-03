@@ -121,10 +121,14 @@ link_repo_agents() {
 
   # Local-only ignore. These are absolute symlinks into one machine's plugin dir,
   # so they must never reach anyone else who clones the repo — but the .gitignore
-  # is tracked and is not ours to edit. .git/info/exclude is per-clone and private.
-  # --absolute-git-dir, not --git-dir: the latter is relative to the target and
-  # would resolve against this script's cwd, writing to the wrong repo.
-  local ex; ex="$(git -C "$target" rev-parse --absolute-git-dir)/info/exclude"
+  # is tracked and is not ours to edit. info/exclude is per-clone and private.
+  #
+  # --git-common-dir, not --absolute-git-dir. In a linked worktree the latter is
+  # .git/worktrees/<name>, and git does not read info/exclude from there, so the
+  # ignore silently does nothing — in a worktree, which is where crew runs.
+  # --path-format=absolute because the bare form can return a relative path that
+  # would resolve against this script's cwd and write to the wrong repo.
+  local ex; ex="$(git -C "$target" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)/info/exclude"
   mkdir -p "$(dirname "$ex")"
   grep -qF '.cursor/agents/crew-' "$ex" 2>/dev/null ||
     { printf '.cursor/agents/crew-*.md\n' >> "$ex"; printf 'ignored locally in %s\n' "$ex"; }
@@ -161,10 +165,20 @@ doctor() {
   echo
   echo "Global (skills):"
   [ -L "$LOCAL_PLUGINS/crew" ] && ok "plugin linked" || warn "plugin not linked — run: ./install.sh"
-  if grep -q '# >>> crew >>>' "$rc" 2>/dev/null; then
-    ok "shell function in $rc"
-  elif grep -qE '^\s*(function\s+)?cursor\s*\(\)' "$rc" 2>/dev/null; then
-    ok "$rc defines cursor() (hand-written, not crew-managed)"
+  if grep -qE '^\s*(function\s+)?cursor\s*\(\)' "$rc" 2>/dev/null; then
+    grep -q '# >>> crew >>>' "$rc" 2>/dev/null &&
+      ok "shell function in $rc" ||
+      ok "$rc defines cursor() (hand-written, not crew-managed)"
+    # Defining cursor() is not enough. Without the ensure call the per-repo link
+    # never happens, every agent silently falls back to the parent's model, and
+    # nothing says so — report the capability, not the marker.
+    if grep -q 'install.sh. ensure' "$rc" 2>/dev/null; then
+      ok "it links agents before launch"
+    else
+      bad "it does NOT link agents before launch — models will not be pinned"
+      warn "add this inside cursor(), before the cursor-agent call:"
+      warn "  \"\$HOME/.cursor/plugins/local/crew/install.sh\" ensure || true"
+    fi
   else
     warn "shell function missing — run: ./install.sh shell"
   fi
