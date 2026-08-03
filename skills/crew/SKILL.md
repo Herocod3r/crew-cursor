@@ -94,7 +94,9 @@ Read and write these with your own file tools. There is no helper script.
 
 ```json
 [
-  { "id": "t1", "files": ["path/a"], "generates": [], "instruction": "", "verify": "", "needs": [] }
+  { "id": "t1", "files": ["path/a"], "generates": [],
+    "interfaces": { "produces": [], "consumes": [] },
+    "instruction": "", "verify": "", "needs": [] }
 ]
 ```
 
@@ -102,13 +104,23 @@ Read and write these with your own file tools. There is no helper script.
 |---|---|
 | `files` | Files the task authors. |
 | `generates` | Files it produces but does not author — lockfiles, generated code, snapshots. Optional, defaults to empty. |
+| `interfaces.produces` | Exact signatures later tasks rely on: names, parameter and return types. Optional. |
+| `interfaces.consumes` | Signatures this task relies on, copied verbatim from the task that produces them. Optional. |
 
 Ownership is `files ∪ generates`, and it drives everything: parallel dispatch, the
 post-wave changed-file guard, and PR staging. One owner per union across the whole array.
 `needs` yields waves by topological sort.
 
+`interfaces` is the contract between tasks, and it holds two invariants: every `consumes`
+string appears verbatim in the `produces` of a task reachable through `needs`, and no symbol
+is produced twice. Both are checkable, which is the point — a builder is dispatched with one
+task and cannot see its neighbours, so a name written two ways in the plan becomes a name
+written two ways in the code.
+
 Never write a requirement-to-task coverage map. Never write code samples for every
-interface. That combination is what made the predecessor's designs bloated and generic.
+interface. `interfaces` carries signatures, not bodies: it exists because tasks hand off to
+each other, not to document the design. That combination of a coverage map and code
+everywhere is what made the predecessor's designs bloated and generic.
 
 ## Sizing
 

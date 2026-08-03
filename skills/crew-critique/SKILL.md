@@ -94,15 +94,18 @@ asked to check yours.
 Read `Alternative not considered` properly. It is the one section written free of the
 plan's framing, and it is where an approach you never evaluated shows up.
 
-## 4b. Check prose against Tasks
+## 4b. Re-check the plan against itself
 
-Before Gate 1, diff the approach prose against the `Tasks` JSON. Every behavioural rule in
-one must appear in the other.
+Any round that edited the plan invalidates the checks from `crew-design` section 6. Run all
+of them again before Gate 1 — the prose against `Tasks`, and the `interfaces` invariants.
 
-They drift because a critique round tightens the prose and leaves `Tasks` alone, and
-`Tasks` is what the build phase executes — so the fix you just made never ships. This is
-not hypothetical; it happened on crew's own v2 plan, where the merge conditions were made
-safe in prose while `Tasks` still carried the unsafe predicate.
+Prose and `Tasks` drift because a round tightens the prose and leaves `Tasks` alone, and
+`Tasks` is what the build phase executes, so the fix never ships. This is not hypothetical;
+it happened on crew's own v2 plan, where the merge conditions were made safe in prose while
+`Tasks` still carried the unsafe predicate.
+
+Interfaces break the same way. Renaming a symbol in one task's `produces` and not in its
+consumers' `consumes` reads as a clean edit and lands as two names for one thing.
 
 ## 5. Gate 1
 

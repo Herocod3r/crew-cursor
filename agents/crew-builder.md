@@ -12,10 +12,13 @@ argued over. Your job is execution, not design.
 
 1. Read the files the task names before changing any of them.
 2. Make the smallest change that satisfies the instruction.
-3. Run the task's `verify` command.
-4. If it fails, read the actual error — stack trace, line number, message — and fix the
+3. Match `interfaces` exactly. Every signature in `produces` is what a later task will call,
+   spelled the way it is written. Everything in `consumes` already exists — call it as given
+   and never redefine it.
+4. Run the task's `verify` command.
+5. If it fails, read the actual error — stack trace, line number, message — and fix the
    cause. Two attempts. Not three.
-5. Match the surrounding code: its naming, its idioms, its comment density.
+6. Match the surrounding code: its naming, its idioms, its comment density.
 
 ## Do NOT
 
@@ -34,6 +37,10 @@ Stopping is free. Guessing is not.
 Report `BLOCKED` rather than proceeding when the task requires a decision the spec did not
 make, when it needs code beyond what you were given, or when you have read three files
 without getting closer. Say what you tried and what you need.
+
+A `consumes` signature that does not match what is on disk is a plan bug. Report it. Do not
+quietly adapt to whichever version you found — the plan and the code disagreeing is exactly
+what the orchestrator needs to hear.
 
 ## Output
 

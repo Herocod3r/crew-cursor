@@ -51,8 +51,11 @@ When serializing, run tasks in stable `id` order within the wave slot.
 For each task in the current wave, dispatch `crew-builder` by `subagent_type` alone. Its
 model is pinned in `agents/crew-builder.md`; never pass a model parameter.
 
-Pass: task `id`, full task spec (`files`, `generates`, `instruction`, `verify`), plan path,
-worktree path from `state.json.git.worktreePath`.
+Pass: task `id`, full task spec (`files`, `generates`, `interfaces`, `instruction`,
+`verify`), plan path, worktree path from `state.json.git.worktreePath`.
+
+`interfaces` is not optional to pass. It is the only place a builder learns the names its
+neighbours use, and it cannot see their tasks.
 
 Parallel when unions are disjoint. One builder per task. Never batch unlike tasks into one
 dispatch.

@@ -52,7 +52,9 @@ To the schema in the `crew` skill, at `<repoRoot>/.crew/<slug>/plan.md`.
 
 ```json
 [
-  { "id": "t1", "files": ["path/a"], "generates": [], "instruction": "", "verify": "", "needs": [] }
+  { "id": "t1", "files": ["path/a"], "generates": [],
+    "interfaces": { "produces": [], "consumes": [] },
+    "instruction": "", "verify": "", "needs": [] }
 ]
 ```
 
@@ -63,6 +65,42 @@ build stops on an unowned change.
 
 One owner per union across the array. `needs` yields waves by topological sort. Every task
 carries a real verify command — a task with nothing to run is a task nobody can check.
+
+## 5. Write the interfaces
+
+Each builder gets one task and cannot see the others. Where tasks hand off, name the seam.
+
+`produces` is every signature a later task will call: exact name, parameter and return
+types. `consumes` is what this task calls from an earlier one, copied verbatim from that
+task's `produces` — copied, not paraphrased, because the whole value is that the two strings
+are identical.
+
+Signatures only, never bodies. This is not licence to write code samples; it is the boundary
+between tasks, and nothing else belongs in it. A task at a leaf with no callers has an empty
+`produces`, and that is normal.
+
+A `consumes` entry whose producer is not in `needs` is a dependency bug, not an interface
+one — the two tasks would land in the same wave and run in parallel. Fix `needs`.
+
+## 6. Check the plan against itself
+
+Run this before every gate, and again after any critique round that edits the plan. It is a
+checklist you run yourself, not a subagent dispatch.
+
+| Check | Failure it catches |
+|---|---|
+| Every `consumes` string appears verbatim in some `produces` | `clearLayers()` in one task, `clearFullLayers()` in another. Both builders are right; the code does not compile. |
+| No symbol appears in two tasks' `produces` | Two builders define the same thing in parallel and the second overwrites the first. |
+| Every `consumes` has its producer in `needs` | The two tasks land in the same wave and race. |
+| Names in the prose match names in `Tasks` | The human approves one design and the builders execute another. |
+| Every task's `verify` can actually fail | A check that passes on the unchanged tree verifies nothing. |
+
+Fix what you find inline and move on. No re-review.
+
+The last two are not hypothetical. On crew's own v2 plan the merge conditions were made safe
+in the prose while `Tasks` still carried the unsafe predicate, and only a second critique
+round caught it — the builders follow `Tasks`, so the prose fix had changed nothing. Revise
+both in the same edit, always.
 
 ## Anti-bloat
 
@@ -75,18 +113,6 @@ That pressure is what made its designs long and generic. Do not reproduce it.
 - Never restate the goal in three sections.
 - Never pad `Decisions` with choices nobody would question.
 - Length is not thoroughness. A plan that fits on a screen and is right beats four pages that hedge.
-
-## Prose and Tasks drift
-
-The `Tasks` JSON is what the build phase executes. The prose is what humans read. They are
-two sources of truth and they drift.
-
-Revise both in the same edit, always. A critique round that tightens a rule in the prose
-and leaves the old rule in `Tasks` has changed nothing — the builders follow `Tasks`.
-
-This is not hypothetical. It happened on crew's own v2 plan: the merge conditions were
-made safe in the prose while `Tasks` still carried the unsafe predicate, and only a second
-critique round caught it. Check the two against each other before every gate.
 
 ## Next
 
