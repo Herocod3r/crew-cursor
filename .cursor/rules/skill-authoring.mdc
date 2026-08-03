@@ -1,0 +1,26 @@
+---
+description: Authoring rules for crew's skills and agents
+globs: skills/**/*.md,agents/*.md,rules/*.mdc
+alwaysApply: false
+---
+
+Skill `name` must equal its parent folder name. Agent `name` must equal its filename.
+
+Only `skills/crew` sets `disable-model-invocation`. A skill with it enabled loads only when
+the human types `/name`, so a phase skill carrying it silently breaks the chain — `crew`
+could never load `crew-intake`.
+
+Skills and agents share one slash namespace. Never reuse a name across the two: skill
+`crew-scout` pairs with agent `crew-retriever`, skill `crew-critique` with agent
+`crew-critic`.
+
+Never collide with a built-in Cursor skill. `review`, `babysit`, `loop`, `shell`, `canvas`
+and the `create-*` family are taken; prefix everything `crew-`.
+
+Bodies stay under 200 lines. Push depth into `references/`, one level deep.
+
+Every `model:` value must appear in `cursor-agent --list-models`. An invalid slug does not
+error — it silently falls back to the parent's model.
+
+Every agent also sets `force-default-model: true`. Without it the pin is only a default and
+a parent that passes `model` in the Task call overrides it silently.
