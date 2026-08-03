@@ -7,10 +7,15 @@
 #   agents   symlinked into each repo's .cursor/agents/, because plugin-bundled
 #            agents silently ignore `model` and `readonly`
 #
+# Once the shell function is in place the per-repo step is automatic: it runs on
+# every launch, before the session starts. It has to happen there rather than in
+# /crew, because subagents are registered once at startup.
+#
 # Usage:
 #   ./install.sh            link the plugin and report what is left to do
 #   ./install.sh shell      append the cursor() function to your shell rc
 #   ./install.sh agents [d] symlink crew's agents into repo d (default: cwd)
+#   ./install.sh ensure [d] same, but quiet and never fails — for the wrapper
 #   ./install.sh doctor     check every part of the install
 
 set -euo pipefail
@@ -51,6 +56,13 @@ cursor() {
     [ -d "$d" ] || continue
     plugin_flags+=(--plugin-dir "$(cd -P "$d" && pwd)")
   done
+  # Link crew's agents into this repo before the session starts. Subagents are
+  # registered once at startup, so /crew cannot do this for its own run — a
+  # symlink made mid-session stays invisible until the next one. Never allowed
+  # to fail the launch.
+  if [ -x "$HOME/.cursor/plugins/local/crew/install.sh" ]; then
+    "$HOME/.cursor/plugins/local/crew/install.sh" ensure || true
+  fi
   command cursor-agent "${plugin_flags[@]}" "$@"
 }
 # <<< crew <<<
@@ -78,14 +90,44 @@ install_shell() {
 }
 
 install_user_agents() {
-  # Documented as loading for all projects. It does NOT load in the CLI — verified
-  # with minimal and full frontmatter in both ~/.cursor/agents/ and ~/.claude/agents/.
-  # Untested in the IDE. Linking costs nothing if ignored and removes the per-repo
-  # step if it works, so do it and let `doctor` report the truth.
+  # Documented as loading for all projects. It does not load in the CLI at all, and
+  # in the IDE it loads with a reduced schema like a plugin: `readonly: true` was
+  # dropped and the agent wrote a file, where the same file at project level was
+  # refused. So this buys discoverability in the IDE and nothing more — it does not
+  # replace the per-repo link, which is the only source that honours `model`.
   mkdir -p "$HOME/.cursor/agents"
   local f
   for f in "$CREW"/agents/*.md; do ln -sfn "$f" "$HOME/.cursor/agents/$(basename "$f")"; done
   ok "agents linked into ~/.cursor/agents/ (works in the IDE only, if at all)"
+}
+
+link_repo_agents() {
+  # Shared by `agents` and `ensure`. Symlink, never copy: a copy keeps working but
+  # drifts from the plugin, so the model a run pins silently stops matching the
+  # plugin's. Echoes one line per action taken and nothing when already correct.
+  local target="$1"
+  mkdir -p "$target/.cursor/agents" || return 1
+  local f n p
+  for f in "$CREW"/agents/*.md; do
+    n="$(basename "$f")"; p="$target/.cursor/agents/$n"
+    if [ -e "$p" ] && [ ! -h "$p" ]; then
+      # A real file, not a link. Replace it, but never silently.
+      ln -sfn "$f" "$p" && printf 'replaced a copy with a symlink: %s\n' "$n"
+    elif [ ! -h "$p" ] || [ "$(readlink "$p")" != "$f" ]; then
+      # Missing, dangling, or pointing at an older plugin location.
+      ln -sfn "$f" "$p" && printf 'linked %s\n' "$n"
+    fi
+  done
+
+  # Local-only ignore. These are absolute symlinks into one machine's plugin dir,
+  # so they must never reach anyone else who clones the repo — but the .gitignore
+  # is tracked and is not ours to edit. .git/info/exclude is per-clone and private.
+  # --absolute-git-dir, not --git-dir: the latter is relative to the target and
+  # would resolve against this script's cwd, writing to the wrong repo.
+  local ex; ex="$(git -C "$target" rev-parse --absolute-git-dir)/info/exclude"
+  mkdir -p "$(dirname "$ex")"
+  grep -qF '.cursor/agents/crew-' "$ex" 2>/dev/null ||
+    { printf '.cursor/agents/crew-*.md\n' >> "$ex"; printf 'ignored locally in %s\n' "$ex"; }
 }
 
 install_agents() {
@@ -93,27 +135,24 @@ install_agents() {
   target="$(cd "$target" && pwd)"
   git -C "$target" rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
     bad "$target is not a git repository"; return 1; }
-
-  mkdir -p "$target/.cursor/agents"
-  local f n
-  for f in "$CREW"/agents/*.md; do
-    n="$(basename "$f")"
-    ln -sfn "$f" "$target/.cursor/agents/$n"
-  done
+  local out; out="$(link_repo_agents "$target")"
+  [ -n "$out" ] && printf '%s\n' "$out" | while read -r l; do ok "$l"; done
   ok "agents linked into $target/.cursor/agents/"
+}
 
-  # Local-only ignore. Absolute symlinks would break for anyone else who cloned
-  # this repo, so never touch its tracked .gitignore.
-  # --absolute-git-dir, not --git-dir: the latter returns a path relative to the
-  # target, which resolves against *this* script's cwd and writes to the wrong repo.
-  local ex; ex="$(git -C "$target" rev-parse --absolute-git-dir)/info/exclude"
-  mkdir -p "$(dirname "$ex")"
-  if grep -qF '.cursor/agents/crew-' "$ex" 2>/dev/null; then
-    ok "already ignored in $ex"
-  else
-    printf '.cursor/agents/crew-*.md\n' >> "$ex"
-    ok "ignored locally in $ex"
-  fi
+ensure_agents() {
+  # Called from the cursor() wrapper on every launch, before the session starts.
+  # Agents are registered once at session start, so linking them from inside /crew
+  # is invisible for that entire run. Must never fail a launch and must stay quiet
+  # once the repo is set up.
+  local target="${1:-$PWD}"
+  git -C "$target" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+  target="$(git -C "$target" rev-parse --show-toplevel 2>/dev/null)" || return 0
+  local out; out="$(link_repo_agents "$target" 2>/dev/null)" || return 0
+  [ -n "$out" ] && printf '%s\n' "$out" | while IFS= read -r l; do
+    printf 'crew: %s\n' "$l" >&2
+  done
+  return 0
 }
 
 doctor() {
@@ -136,8 +175,8 @@ doctor() {
     ok "linked"
     if command -v cursor-agent >/dev/null; then
       if cursor-agent --help >/dev/null 2>&1; then
-        warn "not loaded by the CLI — verified; per-repo linking is still required there"
-        warn "in the IDE: restart, then ask an agent to list subagents starting with 'crew'"
+        warn "not loaded by the CLI at all; in the IDE it loads but drops model/readonly"
+        warn "either way the per-repo link is what pins the models"
       fi
     fi
   else
@@ -151,7 +190,16 @@ doctor() {
       n="$(basename "$f")"
       [ -e "$PWD/.cursor/agents/$n" ] || missing=1
     done
-    [ "$missing" -eq 0 ] && ok "all agents linked here" || warn "agents not linked — run: $CREW/install.sh agents"
+    if [ "$missing" -eq 0 ]; then
+      ok "all agents linked here"
+      [ "$(find "$PWD/.cursor/agents" -maxdepth 1 -name 'crew-*.md' -type f 2>/dev/null | wc -l)" -eq 0 ] ||
+        warn "some are copies, not symlinks — they will drift; rerun to replace them"
+      git check-ignore -q .cursor/agents/crew-critic.md 2>/dev/null &&
+        ok "ignored, so they cannot reach another clone" ||
+        warn "not ignored — rerun to add .git/info/exclude"
+    else
+      warn "agents not linked — launch via the cursor() wrapper, or run: $CREW/install.sh agents"
+    fi
   else
     warn "not a git repository, so no agents to link"
   fi
@@ -176,15 +224,20 @@ case "${1:-}" in
     link_plugin
     install_user_agents
     echo
-    echo "Two steps left:"
-    echo "  1. ./install.sh shell           # so 'cursor' loads the plugin"
-    echo "  2. ./install.sh agents <repo>   # per repo you run crew in"
+    echo "One step left:"
+    echo "  ./install.sh shell    # so 'cursor' loads the plugin and links agents"
+    echo
+    echo "That covers every repo. The wrapper links agents before each launch, so"
+    echo "there is nothing to run per repo."
     echo
     echo "Agents must be per-repo: plugin-bundled agents silently ignore 'model'"
-    echo "and 'readonly', and ~/.cursor/agents/ does not load despite the docs."
+    echo "and 'readonly', and ~/.cursor/agents/ does not load in the CLI despite"
+    echo "the docs. They are symlinked, never copied, and ignored via"
+    echo ".git/info/exclude so they never reach anyone else's clone."
     ;;
   shell)  install_shell ;;
   agents) install_agents "${2:-$PWD}" ;;
+  ensure) ensure_agents "${2:-$PWD}" ;;
   doctor) doctor ;;
-  *) echo "usage: ./install.sh [install|shell|agents [dir]|doctor]" >&2; exit 2 ;;
+  *) echo "usage: ./install.sh [install|shell|agents [dir]|ensure [dir]|doctor]" >&2; exit 2 ;;
 esac

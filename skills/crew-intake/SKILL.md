@@ -33,25 +33,35 @@ git worktree list --porcelain
 checkout. Never `git rev-parse --git-common-dir`; in a submodule that resolves under
 `.git/modules/` and would write state into Git internals.
 
-## 1b. Link the agents into this repo
+## 1b. Check the agents are registered
 
-Plugin-bundled agents silently ignore `model` and `readonly`. Project-level ones honour
-both. Symlink crew's agents into the worktree so the critic actually runs on a different
-model family, the builders run on the cheap fast model instead of your expensive one, and
-the read-only reviewers are read-only structurally rather than by request.
+Plugin-bundled agents silently ignore `model` and `readonly`, and `~/.cursor/agents/` does
+not load in the CLI at all. Only the repo's own `.cursor/agents/` honours both, which is
+what makes the critic a different model family, the builders cheap, and the read-only
+reviewers read-only structurally rather than by request.
 
-```bash
-mkdir -p .cursor/agents
-for f in "$CREW"/agents/*.md; do ln -sfn "$f" ".cursor/agents/$(basename "$f")"; done
-# Local-only ignore: absolute symlinks would break for anyone else who cloned this.
-printf '.cursor/agents/crew-*.md\n' >> "$(git rev-parse --git-dir)/info/exclude"
-```
+The `cursor` wrapper links them before the session starts. **Do not link them here.**
+Subagents are registered once at startup, so a symlink created during a run stays invisible
+for that entire run — verified: the linking step reports success and the very next dispatch
+in the same session still says the type is unavailable.
 
-Symlink, never copy — copies drift from the plugin. Use `.git/info/exclude`, never the
-repo's `.gitignore`: the ignore is yours, and editing a tracked file is not intake's job.
+Check registration, not the filesystem. Dispatch `crew-retriever` with a trivial prompt, or
+read your own available subagent types.
 
-Verify all four resolve before continuing. If any is dangling, say so and stop — a missing
-`crew-critic` degrades the critique to same-family without announcing it.
+| Result | Do this |
+|---|---|
+| All four registered | Continue. |
+| Missing, links absent | Run `~/.cursor/plugins/local/crew/install.sh ensure`, then stop and tell the human to rerun `/crew` in a new session. |
+| Missing, links present | The wrapper ran but startup did not pick them up. Report it and stop. |
+
+Stop rather than continue degraded. A missing `crew-critic` turns the critique same-family
+and a missing `crew-builder` runs the whole build on the expensive parent model, and neither
+announces itself.
+
+Symlinks, never copies — a copy keeps working while drifting from the plugin, so the pinned
+model quietly stops matching. Ignored through `.git/info/exclude`, never the repo's tracked
+`.gitignore`: these are absolute paths into one machine's plugin directory and must never
+reach another clone, and editing a tracked file is not intake's job.
 
 ## 2. Restate
 
