@@ -89,7 +89,7 @@ Read and write these with your own file tools. There is no helper script.
 | Assumptions | Unknowns accepted without closing, each human-approved. Empty is valid. |
 | Approach | Prose plus a diagram. Pseudocode only where an interface is genuinely ambiguous. |
 | Tasks | Fenced `json` block. The machine contract. |
-| Verify | Commands proving the whole thing works. |
+| Verify | Commands proving the whole thing works. The one place a whole-suite run belongs, and it runs once. |
 | Non-goals | Explicitly out of scope. |
 
 ```json
@@ -106,6 +106,7 @@ Read and write these with your own file tools. There is no helper script.
 | `generates` | Files it produces but does not author — lockfiles, generated code, snapshots. Optional, defaults to empty. |
 | `interfaces.produces` | Exact signatures later tasks rely on: names, parameter and return types. Optional. |
 | `interfaces.consumes` | Signatures this task relies on, copied verbatim from the task that produces them. Optional. |
+| `verify` | Checks this task alone, scoped to its `files`. Never the whole suite — builders run it per task and undeduplicated, so a broad command is multiplied by the wave. |
 
 Ownership is `files ∪ generates`, and it drives everything: parallel dispatch, the
 post-wave changed-file guard, and PR staging. One owner per union across the whole array.

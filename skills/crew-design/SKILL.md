@@ -66,6 +66,18 @@ build stops on an unowned change.
 One owner per union across the array. `needs` yields waves by topological sort. Every task
 carries a real verify command — a task with nothing to run is a task nobody can check.
 
+Scope that command to the task. It runs the tests covering the task's own `files`
+(`pytest tests/x/test_y.py::test_z`), never the whole suite (`pytest`). The suite belongs in
+the plan's `Verify`, which runs once.
+
+On a large codebase this is the difference between a build measured in minutes and one
+measured in hours, because a broad command is not run once. Every builder in the wave runs
+its own task's `verify` while implementing, and that is not deduplicated — five tasks
+declaring `pytest` is five full suites running at the same time, contending for the same
+CPU, database and ports, so each is slower than it would be alone. Add up to two retries
+each, the orchestrator's own re-run after the wave, and one more per fix in review. Narrow
+commands make every one of those multiplications cheap.
+
 ## 5. Write the interfaces
 
 Each builder gets one task and cannot see the others. Where tasks hand off, name the seam.
@@ -94,6 +106,7 @@ checklist you run yourself, not a subagent dispatch.
 | Every `consumes` has its producer in `needs` | The two tasks land in the same wave and race. |
 | Names in the prose match names in `Tasks` | The human approves one design and the builders execute another. |
 | Every task's `verify` can actually fail | A check that passes on the unchanged tree verifies nothing. |
+| No task's `verify` runs the whole suite | The suite runs once per task per wave instead of once, and the build takes hours. |
 
 Fix what you find inline and move on. No re-review.
 
