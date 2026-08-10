@@ -245,60 +245,51 @@ as `existing.py:123-145` (`writing-plans:86`), and crew must not: a path can leg
 a colon and digits, and no rule then tells the two apart. Line hints go in a yaml comment beside
 the path, where nothing has to parse them.
 
-That leaves reading git. Crew's existing guards say to compare against
-`git status --porcelain` without saying how to read it, and that output is not a list of bare
-paths. Run in a scratch repository at the time of writing:
+That leaves reading git, and crew reads it the wrong way. Every guard compares
+`git status --porcelain` before an operation against the same after it, which cannot work,
+because status reports the state a path is in rather than whether it changed. A file that an
+earlier wave left at `M` is still at `M` after this wave's builder edits it, so the comparison
+sees nothing. Measured on a scratch repository: across two waves making three real edits, the
+status comparison found one of them.
 
-```
-$ git status --porcelain
- M sub/cost.py:51
-R  sub/oldname.py -> sub/newname.py
-?? "sub/spac\303\251 name.py"
-```
-
-Three things there defeat a naive read. The first two columns are status, not path. A rename is
-one entry holding two paths joined by an arrow, and both of them are the task's business, since
-the old path is a deletion the task must own. A path outside ASCII is quoted and octal-escaped
-unless `core.quotePath` is off.
-
-Use `git status --porcelain=v1 -z`, which drops the quoting and emits a rename as the new path
-followed by the old one, each terminated by a NUL. The same scratch repository:
-
-```
-$ git status --porcelain=v1 -z | tr '\0' '\n'
- M sub/cost.py:51
-R  sub/newname.py
-sub/oldname.py
-?? sub/spacé name.py
-```
-
-Both paths of a rename must appear in the task's union, and a deletion is owned like any other
-change.
-
-`-z` is not the only missing flag. The default untracked mode reports a new file in a new
-directory as the directory:
+Status has three smaller problems on top of that. The first two columns are not part of the
+path. A rename is one entry holding two paths joined by an arrow, and both are the task's
+business, since the old path is a deletion it must own. Anything outside ASCII comes back quoted
+and octal-escaped. `-z` fixes the last two, and `--untracked-files=all` is needed as well or a
+new file in a new directory is reported as the directory:
 
 ```
 $ git status --porcelain=v1 -z                        →  ?? newdir/
 $ git status --porcelain=v1 -z --untracked-files=all  →  ?? newdir/other.py
-                                                         ?? newdir/sub/new.py
 ```
 
-A task owning `newdir/sub/new.py` then fails its own guard, because the tree reports a path no
-task named. The commit implementing this document hit exactly that: it created
-`skills/crew/references/` and git reported the directory. So the string is
-`git status --porcelain=v1 -z --untracked-files=all`, identical in all five readers.
+The first commit implementing this document hit exactly that, creating `skills/crew/references/`
+and having git report the directory.
 
-Crew has these defects today and the new format does not introduce them. They get fixed here
-because the format touches all five of those readers anyway, and because a guard that silently
-mismatches a path is the kind of failure nobody notices until it lets something through.
+None of it is worth fixing, because a tree object answers the question directly. Stage the
+working tree into a throwaway index, write a tree from it, and diff two of those:
 
-One hole stays open. These guards compare a before snapshot against an after one, so they see a
-path appear or change state, and a file that some earlier wave already modified stays `M` when a
-later builder edits it again. Nothing in the snapshot reveals that. The builder's own `Files`
-list is the only cover, which is why an omission from it already counts as an unowned change.
-Closing it properly needs content comparison rather than status comparison, and that is a change
-to the guard mechanism rather than to the plan format.
+```bash
+crew_snapshot() {
+  local i; i="$(mktemp -u)"
+  cp "$(git rev-parse --git-path index)" "$i" 2>/dev/null || true
+  GIT_INDEX_FILE="$i" git add -A
+  GIT_INDEX_FILE="$i" git write-tree
+  rm -f "$i"
+}
+
+git diff-tree -r --name-only -z "$BEFORE" "$AFTER"
+```
+
+The output is exact paths, NUL separated, with nothing to strip and nothing to unquote. A rename
+is two paths, a delete and an add, which is what a task owns anyway. Untracked files are
+included because `add -A` stages them, `.gitignore` is honoured so `.crew/` stays out, the real
+index is never touched, and copying it preserves the stat cache so the walk does not rehash the
+repository. On the three-edit case above it finds all three.
+
+So the format change removes a rule rather than adding one. There is no status parsing to
+specify, no flags to keep identical across five readers, and the one hole this section was going
+to have to concede is closed instead.
 
 ### The brief
 

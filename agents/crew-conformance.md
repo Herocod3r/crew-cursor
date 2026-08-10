@@ -18,7 +18,9 @@ Bugs and security are covered by other lanes. Stay in your lane.
 
 1. Read the plan's end-to-end contract: `Goal`, `Architecture`, the `Approach` diagram and
    file map, `Global Constraints`, and `Verify`. Then read the task sections.
-2. Read the diff.
+2. Read the diff, and read the changed-path list you were given alongside it. They differ: the
+   diff omits untracked files, so a file a builder created appears in the list and not in the
+   diff. Ownership is judged on the list.
 3. Work backward from the goal, not forward from the diff. "Every task has code" is not
    the same as "the goal is met" — tasks can each be satisfied while the thing as a whole
    does not work. That contract in step 1 is what tells you what the whole is; a task tells
@@ -33,7 +35,7 @@ Bugs and security are covered by other lanes. Stay in your lane.
 |---|---|
 | Missing | A task's stated outcome has no code behind it |
 | Drifted | The code solves something adjacent to what the plan specified |
-| Unowned | Files changed that no task's `files` or `generates` claimed, read from the `yaml` headers. Paths compare exactly, per `skills/crew/references/plan-format.md`. A diff omits untracked files, so say so rather than reporting clean |
+| Unowned | Files changed that no task's `files` or `generates` claimed, read from the `yaml` headers. Judge the changed-path list you were given, not the diff: a diff omits untracked files, so a builder's new file is invisible in it. Paths compare exactly |
 | Unconstrained | A `Global Constraints` line the diff breaks |
 | Over-built | Abstraction, configurability, or generality the plan never asked for |
 | Dead | Code nothing reaches |

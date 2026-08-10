@@ -89,22 +89,23 @@ A builder reporting PASS is a claim. You run verification yourself in step 5.
 
 ## 4. Post-wave guard
 
-Before dispatching a wave:
+Snapshot before dispatching the wave, and again after every builder in it finishes.
+`crew_snapshot` is defined in `skills/crew/references/plan-format.md`: a tree object of the
+working tree, built through a throwaway index so the real one is untouched.
 
 ```bash
-git status --porcelain=v1 -z --untracked-files=all
+BEFORE=$(crew_snapshot)
+#   … dispatch the wave …
+AFTER=$(crew_snapshot)
+git diff-tree -r --name-only -z "$BEFORE" "$AFTER"
 ```
 
-Every flag matters and the string is the same in all five readers. Without `-z` a rename is one
-entry with an arrow and non-ASCII paths come back quoted; without `--untracked-files=all` a new
-file in a new directory is reported as the directory, so the task that owns the file fails its
-own guard. Split on NUL, drop the two status columns and the space, and for a rename take both
-paths. Full rules in `skills/crew/references/plan-format.md`.
+That is the set of paths changed *in this wave only*. Never judge the whole dirty tree, because
+earlier waves' work would read as unowned and stop the line falsely.
 
-Save the snapshot. After every builder in the wave finishes, snapshot again.
-
-Diff the two snapshots to paths changed *in this wave only*. Do not compare the whole
-dirty tree — earlier waves' work would read as unowned and stop the line falsely.
+Never substitute `git status` for the snapshot. Status reports the state a path is in, not
+whether it changed, so a file an earlier wave left at `M` stays at `M` when this wave's builder
+edits it too and the guard sees nothing.
 
 For each path changed this wave:
 
@@ -175,7 +176,7 @@ When all tasks are built, set `phase` to `review`. Load `crew-review`.
 - Never hand-number waves instead of deriving them from `needs`.
 - Never proceed when your derived waves disagree with the plan's `## Wave list`.
 - Never paste a task section into a dispatch prompt. Write the brief and pass its path.
-- Never read the tree with plain `git status --porcelain`.
+- Never use `git status` as an ownership snapshot. Take a `crew_snapshot` and diff two trees.
 - Never retry a task a third time after two failures.
 - Never commit, push, or stage in this phase.
 - Never advance past build without writing `state.json`.

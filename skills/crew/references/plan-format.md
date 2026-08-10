@@ -86,33 +86,43 @@ unowned-file finding. One owner per path across the whole plan, not per wave.
 Paths are relative to the repository root, with no `./` and no `..`. Quote any path containing
 `: ` or a leading character yaml would read as syntax.
 
-Read the working tree with exactly this, everywhere:
+## The snapshot
+
+Every ownership guard answers one question: which paths did this dispatch change? Take a
+snapshot before and after, and compare the two.
+
+A snapshot is a git tree object of the whole working tree, untracked files included, built
+through a throwaway index so the real one is never touched:
 
 ```bash
-git status --porcelain=v1 -z --untracked-files=all
+crew_snapshot() {
+  local i; i="$(mktemp -u)"
+  cp "$(git rev-parse --git-path index)" "$i" 2>/dev/null || true
+  GIT_INDEX_FILE="$i" git add -A
+  GIT_INDEX_FILE="$i" git write-tree
+  rm -f "$i"
+}
 ```
 
-Split on NUL, drop the two status columns and the space, and for a rename take **both** paths —
-the old one is a deletion the task must own too.
+Paths changed between two snapshots, and paths changed since the last commit:
 
-Each flag is load-bearing. Plain `--porcelain` writes a rename as `old -> new` in one entry and
-quotes anything outside ASCII, so both read as paths no task owns. Without
-`--untracked-files=all`, a new file in a new directory is reported as the directory:
-
-```
-$ git status --porcelain=v1 -z                        →  ?? newdir/
-$ git status --porcelain=v1 -z --untracked-files=all  →  ?? newdir/other.py
-                                                         ?? newdir/sub/new.py
+```bash
+git diff-tree -r --name-only -z "$BEFORE" "$AFTER"
+git diff-tree -r --name-only -z HEAD "$(crew_snapshot)"
 ```
 
-A task that owns `newdir/sub/new.py` then fails its own guard, because the tree reports a path
-it never named. This is not hypothetical: the commit that introduced this file created
-`skills/crew/references/` and git reported the directory.
+Output is exact paths, NUL separated. Nothing to strip, nothing to unquote. A rename appears as
+two paths, a delete and an add, which is what a task must own anyway. `.gitignore` is honoured,
+so `.crew/` never enters a snapshot. Copying the index preserves its stat cache, so `add -A` is
+a stat walk rather than a rehash of the repository.
 
-**A known limit.** These guards diff a before snapshot against an after one, so they see a path
-appear or change state. They cannot see a builder edit a file that some earlier wave already
-modified, because its status stays `M` either way. The builder's own `Files` list is what covers
-that case, which is why an omission from it is treated as an unowned change.
+**Never use `git status` for this.** Status reports the state a path is in, not whether it
+changed, so a file some earlier wave left at `M` stays at `M` when a later builder edits it
+again, and the guard sees nothing. Measured on a scratch repository: of three real edits across
+two waves, a before-and-after status comparison found one and the tree comparison found all
+three. Status also needs the two columns dropped, `-z` to stop it quoting non-ASCII paths and
+writing renames as `old -> new`, and `--untracked-files=all` or a new file in a new directory is
+reported as the directory. None of that applies to a tree.
 
 ## Steps
 

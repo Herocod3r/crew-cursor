@@ -56,8 +56,11 @@ Same prompt shape as `bugbot`.
 Launch exactly one `crew-conformance` subagent, by `subagent_type` alone. Its model and
 `readonly: true` are pinned in `agents/crew-conformance.md`; never pass a model parameter.
 
-Pass: plan path (`<repoRoot>/.crew/<slug>/plan.md`), worktree path. The agent reads the
-diff itself. Follow its output format in `agents/crew-conformance.md`.
+Pass: plan path (`<repoRoot>/.crew/<slug>/plan.md`), worktree path, and the changed-path list
+from `git diff-tree -r --name-only -z HEAD "$(crew_snapshot)"`. The agent reads the diff itself,
+but `git diff` omits untracked files, so a builder's new file would be invisible to it and its
+unowned-file finding would come back clean when it is not. Follow its output format in
+`agents/crew-conformance.md`.
 
 ### Isolation
 
@@ -108,15 +111,17 @@ Dispatch in fix mode, which the builder handles differently from a task. Pass: t
 `files ∪ generates` of the task sections involved, narrowed to the paths the finding concerns.
 The builder changes code only, no commits.
 
-Snapshot `git status --porcelain=v1 -z --untracked-files=all` before each fix dispatch and
-again after, per `skills/crew/references/plan-format.md`. Compare **the delta between the two
-snapshots** against that finding's allowed list.
+Take a `crew_snapshot` before each fix dispatch and another after, then compare them with
+`git diff-tree -r --name-only -z`, per `skills/crew/references/plan-format.md`. Judge that
+delta against the finding's allowed list.
 
-Two traps. Never judge the whole status output: the tree is dirty from the entire build, so
-every task's files are listed and all of them read as outside a narrow allowed list. And never
-compare against the plan union instead of the finding's list — the union passes any file the
-plan touches anywhere, which lets a one-line fix silently broaden the diff. Anything outside
-the allowed list is escalated, never kept silently.
+Three traps here. Never judge a `git status` listing: the tree is dirty from the whole build,
+so every task's files appear and all of them read as outside a narrow allowed list. Never use
+status as the snapshot either — a file the build left at `M` stays at `M` when the fix touches
+it again, so the one thing the guard exists to catch is the one thing it would miss. And never
+compare against the plan union instead of the finding's list, because the union passes any file
+the plan touches anywhere, which lets a one-line fix silently broaden the diff. Anything
+outside the allowed list is escalated, never kept silently.
 
 After each fix, **re-review only the fix** through **only the lane that raised it**. Do
 not re-run the full diff through all three lanes for a two-line change.

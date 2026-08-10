@@ -130,6 +130,16 @@ def test_check_returns_true_when_redis_is_down(broken_redis):
 - [ ] **Write `api/ratelimit.py`**
 
 ```python
+import logging
+
+from redis import Redis
+from redis.exceptions import RedisError
+
+from api.config import settings
+
+log = logging.getLogger(__name__)
+
+
 class RateLimiter:
     def __init__(self, redis: Redis) -> None:
         self._redis = redis
@@ -178,8 +188,8 @@ verify: "pytest tests/routes/test_auth.py -q"
 
 **Interfaces**
 
-- Consumes, verbatim from t1: `RateLimiter.check(self, key: str) -> bool`,
-  `settings.AUTH_ATTEMPT_LIMIT`.
+- Consumes, verbatim from t1: `RateLimiter(redis: Redis)` and
+  `RateLimiter.check(self, key: str) -> bool`.
 - Produces: nothing. Leaf.
 
 - [ ] **Write the failing test.** Both halves matter: the limit, and that it says nothing about
@@ -211,6 +221,16 @@ def test_sixth_login_is_refused(client, known_email):
 
 - [ ] **Run it.** `pytest tests/routes/test_auth.py -q`
       Expect FAIL: the sixth reset returns 202 and the sixth login returns 401.
+
+- [ ] **Build the limiter once, at module scope,** beside the existing `session_redis` import
+      at the top of `api/routes/auth.py`
+
+```python
+from api.ratelimit import RateLimiter
+from api.session import session_redis
+
+limiter = RateLimiter(session_redis)
+```
 
 - [ ] **Add the check at the top of the reset handler,** at line 88, before it looks the user up
 
