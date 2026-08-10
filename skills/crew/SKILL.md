@@ -68,6 +68,7 @@ resolves under `.git/modules/`, which writes state into Git internals.
   "critique": { "verdict": null, "blocker": 0, "major": 0, "minor": 0, "round": 0 },
   "waveCursor": 0,
   "breaker": { "taskFails": {}, "runFails": 0 },
+  "reviewVerify": { "status": "pending|running|pass|fail|environment_gap", "evidence": [] },
   "git": { "repoRoot": "", "worktreePath": "", "branch": "", "baseRef": "", "gitCommonDir": "" },
   "pr": { "url": null, "number": null, "headSha": null, "merged": false },
   "ticketRefs": [], "created": "", "updated": ""
@@ -96,7 +97,7 @@ Read and write these with your own file tools. There is no helper script.
 | Approach | A diagram and a file map: what each file is responsible for. Never a description of what a task does. |
 | Tasks | One `### tN` section per task. Format in `references/plan-format.md`. |
 | Wave list | Derived from every task's `needs` by topological sort. |
-| Verify | Commands proving the whole thing works. The one place a whole-suite run belongs, and it runs once. |
+| Verify | Whole-run proof. Each fenced `bash` block is one exact command, deduplicated and run once after review fixes from the worktree root as `bash -euo pipefail -c "$block"`. Prose after the blocks is manual checks, run once. The review phase runs these once before Gate 2. |
 | Non-goals | Explicitly out of scope. |
 
 Each task section opens with a fenced `yaml` header carrying `id`, `needs`, `files`,
@@ -161,10 +162,13 @@ After review, before the PR. Present, then stop:
 
 - What changed, by file
 - Coalesced findings: what was fixed, what was not, and why
+- Whole-run verification from `reviewVerify.evidence` — see `crew-review` §4
 - Anything the circuit breaker stopped
 - Anything review raised that two fix rounds did not close
 
 Set `gates.g2` only after the human says go. Same rule as Gate 1: silence is not approval.
+Cannot approve while `reviewVerify.status` is `pending`, `running`, or `fail`; `environment_gap`
+requires explicit acceptance.
 
 Everything after Gate 2 is outward-facing — a push, a PR, a merge. That is what the gate
 is for.

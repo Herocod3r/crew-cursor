@@ -51,6 +51,7 @@ This union drives dispatch, the post-wave guard, and PR staging — one contract
 | Parallel dispatch only when unions are disjoint | Two builders on the same union collide |
 | Serialize tasks sharing any path in `generates` | Generated output has one writer |
 | Serialize tasks whose `verify` touches shared state | Databases, fixture dirs, build caches, ports |
+| Serialize worker-spawning or CPU-saturating verify | Never run two xdist-style suites concurrently |
 
 When serializing, run tasks in stable `id` order within the wave slot.
 
@@ -85,7 +86,7 @@ Concerns: omit if none
 Blocked: omit if none
 ```
 
-A builder reporting PASS is a claim. You run verification yourself in step 5.
+A builder verify report is a claim. Step 5 validates it and decides whether you rerun.
 
 ## 4. Post-wave guard
 
@@ -117,42 +118,51 @@ For each path changed this wave:
 
 ## 5. Verify
 
-After the guard passes, run the wave's `verify` commands yourself, in the worktree.
+After the guard passes, prove the wave.
 
-**Deduplicate first.** Collect the wave's `verify` strings into a set. Five tasks
-declaring `npm test` is one run, not five — and every task sharing that command passes or
-fails together on its single result.
+**Single-task wave.** When the wave contains exactly one task, a **complete verify report**
+from the builder satisfies orchestrator proof. It must show: (1) the exact header `verify`
+command, (2) exit code zero, (3) relevant output showing the command completed. Rerun that
+task's command when proof is missing, non-zero, inconsistent, or the builder reports
+`DONE_WITH_CONCERNS`. A complete zero-exit report does not need a second run.
 
-**Run the distinct commands in parallel**, except any belonging to a task flagged in §2 as
-touching shared state; those run serially, in `id` order. Everything else is independent
-by the same ownership rule that let the builders run concurrently.
+**Multi-task wave.** For a multi-task wave, builder reports prove isolated changes only. Collect the wave's
+`verify` strings into a set — five tasks declaring `npm test` is one run, not five — and
+run the distinct commands yourself after the guard. Every task sharing a command passes or
+fails together on its single result. This integrated proof retains circuit-breaker
+attribution.
 
-Read exit codes and output. A task passes only when its command was run by you and exited
-zero.
+**Serialization.** Run verify commands serially when they share databases, ports, fixture
+directories, build caches, spawn their own workers, or saturate the same CPU pool; never run
+two xdist-style suites concurrently. When serializing orchestrator verify, run in stable
+task `id` order. Uncertain resource use serializes too. Everything else may run in parallel.
+
+Read exit codes and output. A task passes only when its command was run and exited zero.
 
 | Builder verify | Orchestrator verify |
 |---|---|
-| Runs during implementation | Runs after the wave guard |
+| Runs during implementation | Runs after the wave guard (multi-task only) |
 | Sees only that builder's changes | Sees the whole wave integrated |
 | Informs the builder's fix loop | Is the wave's pass/fail |
-| Reported in builder output | Never trusted as proof |
+| Reported in builder output | Never trusted as proof (multi-task) |
 
-The re-run is not only distrust. A builder verified against a tree containing its changes
-alone; by the end of the wave its siblings have landed too, and that is a different
-question. It is also why verification is per wave rather than deferred to the end — a
-failure has to be attributable to a wave for the circuit breaker to mean anything.
+Integrated verify is per wave so a failure is attributable for the circuit breaker.
 
 ## 6. Circuit breaker
 
-Track failures per task and per run.
+Track failures per task and per run. Record at most one breaker event per task attempt.
 
 | Condition | Action |
 |---|---|
 | Same task fails twice | Stop the line. Surface to human. |
 | Three failures across the run (any tasks) | Stop the line. Surface to human. |
 
-A failure is: builder `BLOCKED`, post-wave guard stop, or verify exit non-zero after you
-ran it. `DONE_WITH_CONCERNS` counts as success unless verify fails.
+A failure is: builder `BLOCKED`, a builder-reported non-zero verify exit (even when a
+later fallback passes), post-wave ownership-guard stop, or verify exit non-zero after you
+ran it (single-task fallback rerun or integrated multi-task verify). A complete zero-exit
+verify report for a single-task wave is not a failure. On a single-task wave,
+`DONE_WITH_CONCERNS` triggers the fallback rerun. On a multi-task wave, it succeeds only
+when integrated verify passes.
 
 Never retry a third time on the same task. Two failures on one task is usually a wrong
 plan, not a wrong builder.
@@ -169,8 +179,8 @@ When all tasks are built, set `phase` to `review`. Load `crew-review`.
 
 - Never dispatch parallel builders whose `files ∪ generates` overlap.
 - Never parallelize tasks that share a `generates` path.
-- Never parallelize tasks whose `verify` commands touch shared state.
-- Never trust a builder's verify report as the wave's verification.
+- Never parallelize tasks whose `verify` commands touch shared state, spawn workers, or saturate CPU.
+- Never treat a builder verify report as wave proof on a multi-task wave; a complete report satisfies a single-task wave.
 - Never compare the full dirty tree in the post-wave guard — only this wave's delta.
 - Never absorb a changed file outside the wave's unions.
 - Never hand-number waves instead of deriving them from `needs`.
