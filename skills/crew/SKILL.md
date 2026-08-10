@@ -68,6 +68,7 @@ resolves under `.git/modules/`, which writes state into Git internals.
   "critique": { "verdict": null, "blocker": 0, "major": 0, "minor": 0, "round": 0 },
   "waveCursor": 0,
   "breaker": { "taskFails": {}, "runFails": 0 },
+  "reviewVerify": { "status": "pending|running|pass|fail|environment_gap", "evidence": [] },
   "git": { "repoRoot": "", "worktreePath": "", "branch": "", "baseRef": "", "gitCommonDir": "" },
   "pr": { "url": null, "number": null, "headSha": null, "merged": false },
   "ticketRefs": [], "created": "", "updated": ""
@@ -96,7 +97,7 @@ Read and write these with your own file tools. There is no helper script.
 | Approach | A diagram and a file map: what each file is responsible for. Never a description of what a task does. |
 | Tasks | One `### tN` section per task. Format in `references/plan-format.md`. |
 | Wave list | Derived from every task's `needs` by topological sort. |
-| Verify | Commands proving the whole thing works. The one place a whole-suite run belongs, and it runs once. |
+| Verify | Whole-run proof. Each fenced `bash` block is one exact command; the review phase runs each block once as `bash -euo pipefail -c "$block"` from the worktree root after review fixes and before Gate 2. Prose after the blocks is manual checks — run once, not auto-fixed. |
 | Non-goals | Explicitly out of scope. |
 
 Each task section opens with a fenced `yaml` header carrying `id`, `needs`, `files`,
@@ -163,8 +164,11 @@ After review, before the PR. Present, then stop:
 - Coalesced findings: what was fixed, what was not, and why
 - Anything the circuit breaker stopped
 - Anything review raised that two fix rounds did not close
+- Whole-run verify evidence — see `crew-review` §5 Gate 2 list and `reviewVerify.evidence`
 
-Set `gates.g2` only after the human says go. Same rule as Gate 1: silence is not approval.
+Set `gates.g2` only after the human says go. Never approve while `reviewVerify.status` is
+`pending`, `running`, or `fail`. `pass` allows approval. `environment_gap` requires explicit
+human acceptance — silence is not approval. Same rule as Gate 1 otherwise.
 
 Everything after Gate 2 is outward-facing — a push, a PR, a merge. That is what the gate
 is for.

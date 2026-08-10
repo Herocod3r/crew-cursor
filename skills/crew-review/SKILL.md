@@ -127,7 +127,35 @@ Targeted re-review prompt for built-ins: same shape as round one, plus a line na
 prior finding and the paths changed for the fix. For `crew-conformance`, pass the prior
 finding and ask whether the fix resolves it — still no builder notes.
 
-## 4. Gate 2
+## 4. Verify the whole run
+
+After the fix loop, read `reviewVerify.status`. If `running`, stop and surface the in-flight
+command — do not start another process. Report status and continue the same running command.
+
+Read the plan's `## Verify` section. Set `reviewVerify.status` to `running`, clear or init
+`reviewVerify.evidence`, write `state.json`, then run checks. Each fenced `bash` block is one
+command — deduplicate exact block contents, then run each block once from the worktree root as
+`bash -euo pipefail -c "$block"`. Run prose manual checks once after the blocks. After each
+block and each prose check, append a summary to `reviewVerify.evidence` (`pass`, `fail`, or
+`environment gap`, plus command or check name, exit status, and output). Set the final
+`reviewVerify.status` (`pass`, `fail`, or `environment_gap`) and write `state.json` before §5.
+
+- Run proof commands directly. Do not pipe them through `tail`, `head`, `rg`, or another
+  output filter that changes which exit status is observed.
+- Keep one process per command. If the user asks for status, report and continue the same running command.
+- A code failure: append `fail` evidence, set `reviewVerify.status` to `fail`, write `state.json`,
+  set `phase` to `gate2`, and present a **BLOCKED** Gate 2 with the exact command, exit status,
+  and output. Do not dispatch another builder or change the reviewed diff.
+- Persist every check result in `reviewVerify.evidence`. Gate 2 cannot be approved while
+  `reviewVerify.status` is `pending`, `running`, or `fail`; `environment_gap` requires explicit
+  acceptance.
+- A malformed invocation can be corrected once.
+- A missing prerequisite is an **environment gap** only after proving it is outside the repository,
+  unchanged by the diff, and not replaceable by another local proof. Repo-controlled fixtures,
+  generated files, scripts, and harness dependencies are failures. A proved gap is not a pass
+  and requires explicit human acceptance at Gate 2.
+
+## 5. Gate 2
 
 Set `phase` to `gate2`. Present, then stop:
 
@@ -136,9 +164,14 @@ Set `phase` to `gate2`. Present, then stop:
 - Findings you rejected, and why
 - Anything the circuit breaker stopped (build or review)
 - Anything review raised that two fix rounds did not close
+- Every fenced `bash` block and every prose manual check from the plan's `## Verify` section:
+  `pass`, `fail`, or `environment gap`. An unresolved failure blocks approval. A proved
+  environment gap remains visible and needs explicit acceptance; silence never becomes approval.
 
-Set `gates.g2` only after the human says go. Never infer approval from silence, from a
-question, or from a comment about something else.
+Set `gates.g2` only after the human says go. Never approve while `reviewVerify.status` is
+`pending`, `running`, or `fail`. `pass` allows approval. `environment_gap` requires explicit
+human acceptance. Never infer approval from silence, from a question, or from a comment about
+something else.
 
 Everything after Gate 2 is outward-facing — push, PR, merge. That is what the gate is for.
 

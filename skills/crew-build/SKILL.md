@@ -7,15 +7,13 @@ description: Executes the task sections of plan.md wave by wave via crew-builder
 
 Phase 5. Gate 1 is approved. You orchestrate; builders execute.
 
-Read every `### tN` section under `## Tasks` in `<repoRoot>/.crew/<slug>/plan.md` and parse
-each one's `yaml` header. Structure is only what sits outside a fenced block, and a task's
-header is the first `yaml` fence after its heading; the rest of the rules are in
-`skills/crew/references/plan-format.md`. Set `phase` to `build` in `state.json`. Write state
+Read every `### tN` under `## Tasks` in `<repoRoot>/.crew/<slug>/plan.md` and parse each
+one's `yaml` header (first fence after the heading; rest in
+`skills/crew/references/plan-format.md`). Set `phase` to `build` in `state.json`. Write state
 on entry, not on exit — a crash mid-wave must resume into build, not skip it.
 
 Initialise `waveCursor` to `0` **only when it is absent**. A resumed run continues from the
-saved cursor. Resetting it on entry re-runs waves that already completed, which is the
-opposite of what crash-resume is for.
+saved cursor. Resetting it on entry re-runs completed waves.
 
 ## 1. Compute waves
 
@@ -27,30 +25,29 @@ needs: ["t1"]       → after t1 completes
 needs: ["t1","t2"]  → after both complete
 ```
 
-Each wave is every task whose `needs` are satisfied by earlier waves. Waves are ordered
-and indexed from `0`. Completion is tracked per wave, not per task — there is no built
-flag on individual tasks, and a wave is done only when every task in it passed verify.
+Each wave is every task whose `needs` are satisfied by earlier waves, ordered and indexed
+from `0`. A wave is done only when every task in it passed verify — no per-task built flag.
 
 Compare what you derived against the plan's `## Wave list`. On any disagreement, stop and show
-both. That list was derived from the same `needs` at design time, so two derivations differing
-means one of you misread the plan, and the human should see which before a builder runs.
+both before a builder runs.
 
 **Consume `waveCursor`.** Skip every wave with an index below it, and write the new value
-after each wave passes its guard and verify. Not resetting the cursor on entry is only
-half of resume — a loop that never reads it re-runs completed waves anyway.
+after each wave passes its guard and verify.
 
 ## 2. Ownership
 
 Ownership is `files ∪ generates` for every task. Optional `generates` defaults to empty.
-This union drives dispatch, the post-wave guard, and PR staging — one contract everywhere.
+This union drives dispatch, the post-wave guard, and PR staging.
 
 | Rule | Why |
 |---|---|
-| Parallel dispatch only when unions are disjoint | Two builders on the same union collide |
+| Parallel dispatch only when `files ∪ generates` unions are disjoint and every §2 serialization rule allows it | Overlapping unions collide; disjoint unions alone do not prevent verify contention |
 | Serialize tasks sharing any path in `generates` | Generated output has one writer |
 | Serialize tasks whose `verify` touches shared state | Databases, fixture dirs, build caches, ports |
+| Serialize tasks whose `verify` spawns workers or saturates the CPU pool | Two xdist-style suites contend for the same cores |
 
-When serializing, run tasks in stable `id` order within the wave slot.
+When serializing, run tasks in stable `id` order. When resource use is unclear, serialize
+conservatively.
 
 ## 3. Dispatch
 
@@ -62,17 +59,10 @@ model is pinned in `agents/crew-builder.md`; never pass a model parameter.
 Pass: the brief path, the plan's `## Global Constraints` block, and the worktree path from
 `state.json.git.worktreePath`. Nothing else, and never the plan path.
 
-Never paste the section into the prompt. A task section carries real code, and everything in
-a dispatch prompt stays in your context for the rest of the run and is re-read every turn.
-Ten builders' worth of task text is ten copies you pay for on every later turn.
+Never paste the section into the prompt — it stays in your context for the rest of the run.
 
-The brief is the whole spec, `**Interfaces**` included. That block is the only place a builder
-learns the names its neighbours use, and it cannot see their tasks.
-
-Parallel when unions are disjoint. One builder per task. Never batch unlike tasks into one
-dispatch.
-
-The builder's output contract:
+The brief is the whole spec, `**Interfaces**` included. Parallel only when every §2 rule
+allows it. One builder per task. Never batch unlike tasks into one dispatch.
 
 ```
 Status:  DONE | DONE_WITH_CONCERNS | BLOCKED
@@ -82,7 +72,7 @@ Concerns: omit if none
 Blocked: omit if none
 ```
 
-A builder reporting PASS is a claim. You run verification yourself in step 5.
+A builder verify report is a claim. §5 validates each report and decides whether a rerun is required.
 
 ## 4. Post-wave guard
 
@@ -101,8 +91,6 @@ Save the snapshot. After every builder in the wave finishes, snapshot again.
 Diff the two snapshots to paths changed *in this wave only*. Do not compare the whole
 dirty tree — earlier waves' work would read as unowned and stop the line falsely.
 
-For each path changed this wave:
-
 | Check | Action |
 |---|---|
 | Path is in some task's `files ∪ generates` for this wave | OK |
@@ -111,30 +99,33 @@ For each path changed this wave:
 
 ## 5. Verify
 
-After the guard passes, run the wave's `verify` commands yourself, in the worktree.
+Every builder runs its narrow header `verify` during implementation. That report is the
+builder's proof of its isolated change.
+
+After the guard passes, validate each builder report contains:
+
+1. the exact header `verify` command,
+2. exit code zero,
+3. relevant output showing the command completed.
+
+A **complete verify report** satisfies a **single-task wave** containing exactly one task.
+Rerun that task's command when proof is missing, non-zero, inconsistent, or the builder
+reports `DONE_WITH_CONCERNS`. For a **multi-task wave**, deduplicate header `verify` strings
+and run them after the guard — builder reports prove isolated changes; orchestrator runs prove
+the integrated wave and retain circuit breaker attribution.
 
 **Deduplicate first.** Collect the wave's `verify` strings into a set. Five tasks
-declaring `npm test` is one run, not five — and every task sharing that command passes or
-fails together on its single result.
+declaring `npm test` is one run, not five.
 
-**Run the distinct commands in parallel**, except any belonging to a task flagged in §2 as
-touching shared state; those run serially, in `id` order. Everything else is independent
-by the same ownership rule that let the builders run concurrently.
-
-Read exit codes and output. A task passes only when its command was run by you and exited
-zero.
+**Run the distinct commands in parallel**, except any belonging to a task §2 requires
+serializing — shared state, worker-spawning, or CPU pool saturation; those run serially, in
+`id` order. Never run two xdist-style suites concurrently.
 
 | Builder verify | Orchestrator verify |
 |---|---|
 | Runs during implementation | Runs after the wave guard |
 | Sees only that builder's changes | Sees the whole wave integrated |
-| Informs the builder's fix loop | Is the wave's pass/fail |
-| Reported in builder output | Never trusted as proof |
-
-The re-run is not only distrust. A builder verified against a tree containing its changes
-alone; by the end of the wave its siblings have landed too, and that is a different
-question. It is also why verification is per wave rather than deferred to the end — a
-failure has to be attributable to a wave for the circuit breaker to mean anything.
+| A complete report proves a single-task wave | Skipped for a complete single-task report |
 
 ## 6. Circuit breaker
 
@@ -145,13 +136,16 @@ Track failures per task and per run.
 | Same task fails twice | Stop the line. Surface to human. |
 | Three failures across the run (any tasks) | Stop the line. Surface to human. |
 
-A failure is: builder `BLOCKED`, post-wave guard stop, or verify exit non-zero after you
-ran it. `DONE_WITH_CONCERNS` counts as success unless verify fails.
+A failure is: builder `BLOCKED`, a builder-reported verify exit non-zero, post-wave guard
+stop, verify exit non-zero after you ran it, or a single-task fallback rerun failing. Count a
+builder-reported non-zero even when a later fallback rerun passes. A complete zero-exit report
+for a single-task wave is not a failure. `DONE_WITH_CONCERNS` on a single-task wave triggers
+the fallback rerun; on a multi-task wave it counts as success unless integrated verify fails.
 
-Never retry a third time on the same task. Two failures on one task is usually a wrong
-plan, not a wrong builder.
+One task attempt contributes at most one circuit-breaker failure event — overlapping symptoms
+from the same attempt do not double-count.
 
-Record breaker state in `state.json` so a resumed run does not reset counts silently.
+Never retry a third time on the same task. Record breaker state in `state.json`.
 
 ## 7. Advance
 
@@ -164,7 +158,9 @@ When all tasks are built, set `phase` to `review`. Load `crew-review`.
 - Never dispatch parallel builders whose `files ∪ generates` overlap.
 - Never parallelize tasks that share a `generates` path.
 - Never parallelize tasks whose `verify` commands touch shared state.
-- Never trust a builder's verify report as the wave's verification.
+- Never parallelize tasks whose `verify` commands spawn workers or saturate the CPU pool.
+- Never run two xdist-style suites concurrently.
+- Never trust an incomplete builder verify report as the wave's verification.
 - Never compare the full dirty tree in the post-wave guard — only this wave's delta.
 - Never absorb a changed file outside the wave's unions.
 - Never hand-number waves instead of deriving them from `needs`.
