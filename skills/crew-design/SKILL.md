@@ -111,6 +111,8 @@ checklist you run yourself, not a subagent dispatch.
 | No path appears in two tasks' `files ∪ generates` | Two builders write one file at the same time. |
 | `## Wave list` matches a topological sort of `needs` | A `needs` edge for setup order or shared state has no interface to check it. |
 | Every header is valid by the list in `skills/crew/references/plan-format.md` | Missing keys, a duplicate `id`, a `needs` naming a task that does not exist, or a cycle. |
+| Every task's `files` is non-empty | A task authoring nothing is a precondition wearing a task's clothes. The builder is forbidden to write anything and told to produce something. |
+| `plan.md` under 300 lines | The plan is longer than the thing it describes, and the human stops reading before Gate 1. |
 | No step contains anything from the never-write list in `skills/crew/references/plan-format.md` | The builder is handed "handle edge cases" and invents a design. |
 | Every task's `verify` can actually fail | A check that passes on the unchanged tree verifies nothing. |
 | No task's `verify` runs the whole suite | The suite runs once per task per wave instead of once, and the build takes hours. |
@@ -134,9 +136,18 @@ That pressure is what made its designs long and generic. Do not reproduce it.
 - Never pad `Decisions` with choices nobody would question.
 - Length is not thoroughness. A plan whose prose fits on a screen and whose tasks leave nothing to invent beats four pages that hedge.
 
-Code in a step is not bloat, and its absence is a failure. A step whose deliverable is code
-and which shows no code hands the decision to a builder that cannot ask you what you meant.
-The English describing a change is usually longer than the change.
+Code in a step is not bloat when the code is the deliverable: an exact value, a signature a
+later task calls, a test that defines the behaviour. A step whose deliverable is code and which
+shows no code hands the decision to a builder that cannot ask you what you meant.
+
+The opposite is also a failure, and it is the one this format invites. A step is one line unless
+it carries code, and a change a competent builder makes correctly from one sentence gets one
+sentence. Steps are line-expensive, so a plan written as a runbook is unreadable at Gate 1 even
+when every line is true. Budgets are in `skills/crew/references/plan-format.md`.
+
+If a task has no file to author, it is not a task. Operational work — clearing a production
+check, migrating a live dashboard — is a precondition. Put it in `Assumptions`, get it approved,
+and let the human clear it. Never write it as a task for a builder to execute.
 
 ## Next
 

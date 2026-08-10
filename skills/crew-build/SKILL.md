@@ -46,6 +46,11 @@ Ownership is `files ∪ generates` for every task. Both keys are always written;
 nothing generated carries `generates: []`, and a header missing either key is invalid.
 This union drives dispatch, the post-wave guard, and PR staging — one contract everywhere.
 
+**A task whose `files` is empty stops the phase.** Do not dispatch it and do not work around it.
+The builder cannot touch anything outside its union, so an empty one means the brief asks for
+something the contract forbids, and the task is a precondition that reached the wrong phase.
+Report it and stop; the plan needs the human, not a retry.
+
 | Rule | Why |
 |---|---|
 | Parallel dispatch only when unions are disjoint | Two builders on the same union collide |
@@ -177,6 +182,7 @@ When all tasks are built, set `phase` to `review`. Load `crew-review`.
 
 ## Never
 
+- Never dispatch a task whose `files` is empty. Stop and report it.
 - Never dispatch parallel builders whose `files ∪ generates` overlap.
 - Never parallelize tasks that share a `generates` path.
 - Never parallelize tasks whose `verify` commands touch shared state, spawn workers, or saturate CPU.

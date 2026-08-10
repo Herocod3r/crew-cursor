@@ -117,12 +117,9 @@ so `.crew/` never enters a snapshot. Copying the index preserves its stat cache,
 a stat walk rather than a rehash of the repository.
 
 **Never use `git status` for this.** Status reports the state a path is in, not whether it
-changed, so a file some earlier wave left at `M` stays at `M` when a later builder edits it
-again, and the guard sees nothing. Measured on a scratch repository: of three real edits across
-two waves, a before-and-after status comparison found one and the tree comparison found all
-three. Status also needs the two columns dropped, `-z` to stop it quoting non-ASCII paths and
-writing renames as `old -> new`, and `--untracked-files=all` or a new file in a new directory is
-reported as the directory. None of that applies to a tree.
+changed, so a file an earlier wave left at `M` stays at `M` when a later builder edits it and
+the guard sees nothing. Measured on a scratch repository: of three real edits across two waves,
+status found one and the tree comparison found all three.
 
 ## Steps
 
@@ -153,10 +150,43 @@ A header is valid only when all of these hold. Any failure stops the phase that 
 
 - It parses as yaml.
 - All five keys are present. `generates: []` is written, not omitted.
+- **`files` is not empty.** A task that authors no file is not a task.
 - `id` matches its heading, and no two tasks share an `id`.
 - `needs` is a list of ids that exist in this plan, and the graph has no cycle.
 - `files` and `generates` are lists of strings. `verify` is a non-empty string.
 - The number of headers equals the number of `### tN` headings under `## Tasks`.
+
+Empty `files` matters most. A builder may touch nothing outside its union, so an empty one hands
+it a brief demanding output and a contract forbidding it. On `archmds-1198` two tasks were
+written that way — query production Temporal, migrate a live dashboard — because the artifact
+sat outside the repository. Every other check passed, a builder was dispatched at the first, and
+the run ended ninety-three minutes later with nothing changed and seven real tasks never
+reached. Work with no file to author is a precondition: put it in `Assumptions` and let the
+human clear it.
+
+## Budget
+
+Steps and code fences cost lines fast. Comparable work in one repository was 264 lines under the
+old format and 546 under this one, for fewer words. The human has to read it.
+
+**`plan.md` stays under 300 lines.** One number, on the whole file.
+
+Two rules hold it there. **A step is one line unless it carries code.** And **code goes in a
+step only when the code is the deliverable**: an exact value, a signature a later task calls, a
+test that defines the behaviour. A change a competent builder makes from one sentence gets one
+sentence.
+
+The budget is on the plan rather than on a task, because task size varies honestly: a task
+creating a file has to show what goes in it, a task changing one line does not. What does not
+vary is how much a human reads before approving. 300 is generous — the last plan of this kind to
+reach a merged PR was 264, and the one that stalled was 546.
+
+A per-section budget was tried and dropped: every plan measured, good and bad, put 117 to 160
+lines outside `## Tasks`, so it separated nothing. The tasks are where plans grow.
+
+Over budget means, in this order: a step is narrating what the next step will do; a task carries
+design discussion belonging in `Decisions` or nowhere; or the run is too big and wants
+splitting. Cut. Do not reformat.
 
 ## Wave list
 

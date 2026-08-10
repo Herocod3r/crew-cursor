@@ -35,7 +35,18 @@ The critic's first output section reports its model family. Compare it against y
 Do this every round. The failure is silent by construction — a same-family critic returns
 a confident, well-formatted, agreeable review, and nothing else signals the problem.
 
-**Fallback** if the agents are not linked and you cannot link them:
+**The fallback fires only when the dispatch itself fails.** A `crew-critic` subagent that
+returned is the critique. Do not run the subprocess as well, and never run it because you want a
+second opinion on the first one.
+
+That happened on `archmds-1198`: `crew-critic` was dispatched and returned, and the subprocess
+was then run twice anyway, blocking five minutes and ten. Both calls named
+`claude-opus-5-thinking-max-fast`, the same family as the orchestrator, so fifteen minutes bought
+a critique with exactly the independence this phase exists to guarantee against.
+
+Two conditions, both required, before shelling out. The subagent dispatch failed. And the
+`--model` you name is a different family from your own — check it before running, because a
+same-family subprocess is strictly worse than the subagent you just failed to get.
 
 ```bash
 cursor-agent -p --model gpt-5.5-extra-high-fast --plan --auto-review --trust \
@@ -123,6 +134,8 @@ question, or from a comment about something else.
 ## Never
 
 - Never run a same-family critique without warning.
+- Never shell out to `cursor-agent` after a `crew-critic` dispatch returned. That is the critique.
+- Never shell out on a model from your own family. A same-family subprocess buys nothing and costs minutes.
 - Never shell out to the `codex` CLI, or invoke a skill that wraps it. Dispatch a subagent.
 - Never exceed two critique rounds.
 - Never accept a finding without checking it.
