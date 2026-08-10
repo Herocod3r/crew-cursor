@@ -110,7 +110,8 @@ checklist you run yourself, not a subagent dispatch.
 | Every `Consumes` has its producer in `needs` | The two tasks land in the same wave and race. |
 | No path appears in two tasks' `files ∪ generates` | Two builders write one file at the same time. |
 | `## Wave list` matches a topological sort of `needs` | A `needs` edge for setup order or shared state has no interface to check it. |
-| No step contains anything from the never-write list in `references/plan-format.md` | The builder is handed "handle edge cases" and invents a design. |
+| Every header is valid by the list in `skills/crew/references/plan-format.md` | Missing keys, a duplicate `id`, a `needs` naming a task that does not exist, or a cycle. |
+| No step contains anything from the never-write list in `skills/crew/references/plan-format.md` | The builder is handed "handle edge cases" and invents a design. |
 | Every task's `verify` can actually fail | A check that passes on the unchanged tree verifies nothing. |
 | No task's `verify` runs the whole suite | The suite runs once per task per wave instead of once, and the build takes hours. |
 

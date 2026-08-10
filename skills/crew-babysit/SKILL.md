@@ -103,12 +103,14 @@ After any push, treat approvals as void. Request re-review. Keep polling.
 These run after Gate 2 with no human watching, so they get the same ownership guard build
 and PR use. A comment-driven fix is not a licence to edit anything.
 
-1. Dispatch `crew-builder` with the task's brief path and an explicit allowed-path list: the
-   `files ∪ generates` of the task sections involved, narrowed to the paths the finding
-   concerns. Task section format is in `skills/crew/references/plan-format.md`.
-2. Run `git status --porcelain=v1 -z`, never the plain form, and compare against **that fix's
-   allowed list**, not the whole plan union. The union would pass any file the plan touches
-   anywhere.
+1. Dispatch `crew-builder` in fix mode with the task's brief path, the plan's
+   `## Global Constraints` block, and an explicit allowed-path list: the `files ∪ generates`
+   of the task sections involved, narrowed to the paths the finding concerns. Task section
+   format is in `skills/crew/references/plan-format.md`.
+2. Take a `crew_snapshot` before and after, compare with `git diff-tree -r --name-only -z`, and
+   judge **that delta** against the fix's allowed list. Never a `git status` listing, which
+   shows the whole dirty tree and cannot see a second edit to an already-modified file, and
+   never the plan union, which passes any file the plan touches anywhere.
 3. Stage named paths only. Never `git add .` or `git add -A`.
 4. Escalate anything outside the allowed list. Never stage it, never discard it.
 

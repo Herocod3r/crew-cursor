@@ -83,17 +83,46 @@ Five readers compare a changed path against a task's `files ∪ generates`: the 
 PR staging, the review fix guard, every push babysit makes, and the conformance lane's
 unowned-file finding. One owner per path across the whole plan, not per wave.
 
-Read the working tree with `git status --porcelain=v1 -z`, never plain `--porcelain`. The plain
-form writes a rename as `old -> new` in one entry and quotes anything outside ASCII:
+Paths are relative to the repository root, with no `./` and no `..`. Quote any path containing
+`: ` or a leading character yaml would read as syntax.
 
-```
- M sub/cost.py:51
-R  sub/oldname.py -> sub/newname.py
-?? "sub/spac\303\251 name.py"
+## The snapshot
+
+Every ownership guard answers one question: which paths did this dispatch change? Take a
+snapshot before and after, and compare the two.
+
+A snapshot is a git tree object of the whole working tree, untracked files included, built
+through a throwaway index so the real one is never touched:
+
+```bash
+crew_snapshot() {
+  local i; i="$(mktemp -u)"
+  cp "$(git rev-parse --git-path index)" "$i" 2>/dev/null || true
+  GIT_INDEX_FILE="$i" git add -A
+  GIT_INDEX_FILE="$i" git write-tree
+  rm -f "$i"
+}
 ```
 
-The `-z` form does neither. Split on NUL, drop the two status columns and the space, and for a
-rename take **both** paths — the old one is a deletion the task must own too.
+Paths changed between two snapshots, and paths changed since the last commit:
+
+```bash
+git diff-tree -r --name-only -z "$BEFORE" "$AFTER"
+git diff-tree -r --name-only -z HEAD "$(crew_snapshot)"
+```
+
+Output is exact paths, NUL separated. Nothing to strip, nothing to unquote. A rename appears as
+two paths, a delete and an add, which is what a task must own anyway. `.gitignore` is honoured,
+so `.crew/` never enters a snapshot. Copying the index preserves its stat cache, so `add -A` is
+a stat walk rather than a rehash of the repository.
+
+**Never use `git status` for this.** Status reports the state a path is in, not whether it
+changed, so a file some earlier wave left at `M` stays at `M` when a later builder edits it
+again, and the guard sees nothing. Measured on a scratch repository: of three real edits across
+two waves, a before-and-after status comparison found one and the tree comparison found all
+three. Status also needs the two columns dropped, `-z` to stop it quoting non-ASCII paths and
+writing renames as `old -> new`, and `--untracked-files=all` or a new file in a new directory is
+reported as the directory. None of that applies to a tree.
 
 ## Steps
 
@@ -118,10 +147,31 @@ Each is a plan failure, not a style problem. The builder cannot ask you what you
 - a step whose deliverable is code and which shows no code
 - a name, type or signature no task defines
 
+## Header validity
+
+A header is valid only when all of these hold. Any failure stops the phase that found it.
+
+- It parses as yaml.
+- All five keys are present. `generates: []` is written, not omitted.
+- `id` matches its heading, and no two tasks share an `id`.
+- `needs` is a list of ids that exist in this plan, and the graph has no cycle.
+- `files` and `generates` are lists of strings. `verify` is a non-empty string.
+- The number of headers equals the number of `### tN` headings under `## Tasks`.
+
 ## Wave list
 
 The plan carries a `## Wave list` section, derived from every task's `needs` by topological
-sort. `crew-build` derives it again from the same headers and stops if the two disagree.
+sort. `crew-build` derives it again from the same headers and stops if the two disagree. A plan
+missing the section, or carrying one that does not parse, stops the phase — an absent list is
+not an agreement.
+
+One fenced block, one wave per line, ids in ascending order within a wave:
+
+```
+wave 0   t1
+wave 1   t2  t3  t4
+wave 2   t5
+```
 
 This is not the hand-numbering `crew-build` forbids. A hand-numbered wave is a second source of
 truth that drifts from `needs`. This one is computed from `needs`, and it exists so that two

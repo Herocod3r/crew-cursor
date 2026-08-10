@@ -130,6 +130,11 @@ What the prose used to carry, superpowers puts in two lines of header (`writing-
 and takes `## Global Constraints` with them, which is the list of project-wide requirements with
 exact values copied verbatim that binds every task.
 
+`Global Constraints` needs a reader, or it is a section the plan writes and nothing enforces.
+`crew-conformance` already judges a diff against the approved plan, so it gains one finding
+kind, `Unconstrained`: a constraint the plan states and the diff breaks. That is the whole of
+the new checking; the other lanes are unchanged.
+
 One reader depends on more than the tasks and has to keep depending on it. `crew-conformance`
 reads `Goal`, `Approach` and `Tasks` (`:19`) and is told to work backward from the goal, because
 every task can be satisfied while the thing as a whole does not work (`:21-23`). A file map does
@@ -240,37 +245,51 @@ as `existing.py:123-145` (`writing-plans:86`), and crew must not: a path can leg
 a colon and digits, and no rule then tells the two apart. Line hints go in a yaml comment beside
 the path, where nothing has to parse them.
 
-That leaves reading git. Crew's existing guards say to compare against
-`git status --porcelain` without saying how to read it, and that output is not a list of bare
-paths. Run in a scratch repository at the time of writing:
+That leaves reading git, and crew reads it the wrong way. Every guard compares
+`git status --porcelain` before an operation against the same after it, which cannot work,
+because status reports the state a path is in rather than whether it changed. A file that an
+earlier wave left at `M` is still at `M` after this wave's builder edits it, so the comparison
+sees nothing. Measured on a scratch repository: across two waves making three real edits, the
+status comparison found one of them.
+
+Status has three smaller problems on top of that. The first two columns are not part of the
+path. A rename is one entry holding two paths joined by an arrow, and both are the task's
+business, since the old path is a deletion it must own. Anything outside ASCII comes back quoted
+and octal-escaped. `-z` fixes the last two, and `--untracked-files=all` is needed as well or a
+new file in a new directory is reported as the directory:
 
 ```
-$ git status --porcelain
- M sub/cost.py:51
-R  sub/oldname.py -> sub/newname.py
-?? "sub/spac\303\251 name.py"
+$ git status --porcelain=v1 -z                        →  ?? newdir/
+$ git status --porcelain=v1 -z --untracked-files=all  →  ?? newdir/other.py
 ```
 
-Three things there defeat a naive read. The first two columns are status, not path. A rename is
-one entry holding two paths joined by an arrow, and both of them are the task's business, since
-the old path is a deletion the task must own. A path outside ASCII is quoted and octal-escaped
-unless `core.quotePath` is off.
+The first commit implementing this document hit exactly that, creating `skills/crew/references/`
+and having git report the directory.
 
-Use `git status --porcelain=v1 -z`, which drops the quoting and emits a rename as the new path
-followed by the old one, each terminated by a NUL. The same scratch repository:
+None of it is worth fixing, because a tree object answers the question directly. Stage the
+working tree into a throwaway index, write a tree from it, and diff two of those:
 
+```bash
+crew_snapshot() {
+  local i; i="$(mktemp -u)"
+  cp "$(git rev-parse --git-path index)" "$i" 2>/dev/null || true
+  GIT_INDEX_FILE="$i" git add -A
+  GIT_INDEX_FILE="$i" git write-tree
+  rm -f "$i"
+}
+
+git diff-tree -r --name-only -z "$BEFORE" "$AFTER"
 ```
-$ git status --porcelain=v1 -z | tr '\0' '\n'
- M sub/cost.py:51
-R  sub/newname.py
-sub/oldname.py
-?? sub/spacé name.py
-```
 
-Both paths of a rename must appear in the task's union, and a deletion is owned like any other
-change. Crew has this defect today and the new format does not introduce it. It gets fixed here
-because the format touches all five of those readers anyway, and because a guard that silently
-mismatches a renamed path is the kind of failure nobody notices until it lets something through.
+The output is exact paths, NUL separated, with nothing to strip and nothing to unquote. A rename
+is two paths, a delete and an add, which is what a task owns anyway. Untracked files are
+included because `add -A` stages them, `.gitignore` is honoured so `.crew/` stays out, the real
+index is never touched, and copying it preserves the stat cache so the walk does not rehash the
+repository. On the three-edit case above it finds all three.
+
+So the format change removes a rule rather than adding one. There is no status parsing to
+specify, no flags to keep identical across five readers, and the one hole this section was going
+to have to concede is closed instead.
 
 ### The brief
 
@@ -309,7 +328,7 @@ derived from `needs` at design time, and `crew-build` derives it again from the 
 stops if the two disagree.
 
 That is not the hand-numbering `crew-build:20` forbids. Hand-numbered waves are a second source
-of truth that drifts from `needs`. This list is computed from `Needs`, exists so that two
+of truth that drifts from `needs`. This list is computed from `needs`, exists so that two
 independent derivations can be compared, and is wrong exactly when the human should see it,
 which is at Gate 1 rather than at dispatch. Crew's own v2 plan already ends its task list with
 one (`.crew/crew-v2/plan.md:366`), written by hand and checked by nobody.
@@ -362,7 +381,7 @@ shows the code, and the wave list `crew-build` derives matches the one the plan 
 
 | Risk | Mitigation | Trigger to revisit |
 |---|---|---|
-| A run in flight in another repo has a JSON plan when the skills change under it | `crew-build` and `crew-pr` keep reading a `## Tasks` JSON block when they find one. Two sentences, not a migration path | Any JSON plan still being written six runs from now, at which point delete the clause |
+| A run in flight in another repo has a JSON plan when the skills change under it | None. No reader keeps a JSON fallback, and an old run has no briefs for review or babysit to pass either, so a half-measure in two of the five readers would fail later instead of sooner. Finish or abandon in-flight runs before upgrading | A run stranded by the upgrade, which would argue for a one-off converter rather than a fallback in every reader |
 | Path normalisation is now a parsing step, and four phases depend on it | The rule is stated once and cited, and every consumer compares normalised paths only | An ownership guard that passes a path it should have stopped, or stops one it should have passed |
 | Task sections with code make `plan.md` longer in bytes than the version this replaces | It removes 1,324 duplicated words and adds code where prose was describing code. The claim is that it is shorter to read, not shorter on disk | A plan the human skips reading at Gate 1 |
 | The design agent writes code that is wrong, and a builder transcribes it faithfully | Gate 1 is where wrong code is cheapest to catch, which is the point of writing it there. The critic reads the plan and can now read the code in it | Any Gate 1 that approves plan code which turns out wrong at build time |

@@ -97,7 +97,7 @@ Read and write these with your own file tools. There is no helper script.
 | Approach | A diagram and a file map: what each file is responsible for. Never a description of what a task does. |
 | Tasks | One `### tN` section per task. Format in `references/plan-format.md`. |
 | Wave list | Derived from every task's `needs` by topological sort. |
-| Verify | Whole-run proof. Each fenced `bash` block is one exact command; the review phase runs each block once as `bash -euo pipefail -c "$block"` from the worktree root after review fixes and before Gate 2. Prose after the blocks is manual checks — run once, not auto-fixed. |
+| Verify | Commands proving the whole thing works. The review phase runs these once after review fixes and before Gate 2. |
 | Non-goals | Explicitly out of scope. |
 
 Each task section opens with a fenced `yaml` header carrying `id`, `needs`, `files`,
@@ -162,13 +162,13 @@ After review, before the PR. Present, then stop:
 
 - What changed, by file
 - Coalesced findings: what was fixed, what was not, and why
+- Whole-run verification from `reviewVerify.evidence` — see `crew-review` §4
 - Anything the circuit breaker stopped
 - Anything review raised that two fix rounds did not close
-- Whole-run verify evidence — see `crew-review` §5 Gate 2 list and `reviewVerify.evidence`
 
-Set `gates.g2` only after the human says go. Never approve while `reviewVerify.status` is
-`pending`, `running`, or `fail`. `pass` allows approval. `environment_gap` requires explicit
-human acceptance — silence is not approval. Same rule as Gate 1 otherwise.
+Set `gates.g2` only after the human says go. Same rule as Gate 1: silence is not approval.
+Cannot approve while `reviewVerify.status` is `pending`, `running`, or `fail`; `environment_gap`
+requires explicit acceptance.
 
 Everything after Gate 2 is outward-facing — a push, a PR, a merge. That is what the gate
 is for.

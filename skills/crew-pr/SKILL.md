@@ -28,12 +28,18 @@ git -C <worktreePath> add -- <path1> <path2> …
 ## 2. Guard the tree
 
 ```bash
-git -C <worktreePath> status --porcelain=v1 -z
+git -C <worktreePath> diff-tree -r --name-only -z HEAD "$(crew_snapshot)"
 ```
 
-Never the plain form. It writes a rename as `old -> new` in one entry and quotes anything
-outside ASCII, so both would read as paths no task owns. Reading rules in
-`skills/crew/references/plan-format.md`.
+`crew_snapshot` is defined in `skills/crew/references/plan-format.md`. It returns a tree object
+of the working tree, untracked files included, `.gitignore` honoured, without touching the
+index. The output is exact paths with nothing to strip or unquote, and a rename appears as two
+of them.
+
+Never `git status` here. Its output needs the status columns dropped, `-z` to stop it quoting
+non-ASCII paths and collapsing renames into `old -> new`, and `--untracked-files=all` or a new
+file in a new directory is reported as the directory. Every one of those is a way to mistake a
+path for one no task owns.
 
 Every changed path in the worktree must appear in some task's `files ∪ generates`, and a
 rename contributes both of its paths.

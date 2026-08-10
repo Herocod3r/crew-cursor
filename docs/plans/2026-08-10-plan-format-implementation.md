@@ -22,8 +22,8 @@ document now says.
 
 - Every `skills/*/SKILL.md` body stays under 200 lines. `skills/crew/SKILL.md` is at 190, so new
   depth goes to `skills/crew/references/plan-format.md`, one level deep.
-- The porcelain command is written exactly as `git status --porcelain=v1 -z` everywhere it
-  appears. No other form.
+- Ownership guards compare two tree snapshots, never `git status`. The helper is named
+  `crew_snapshot` and is defined once, in the reference.
 - A `verify` value inside a plan's yaml header is always a quoted string.
 - Skill frontmatter `name` equals its parent folder name. Agent frontmatter `name` equals its
   filename. Only `skills/crew` sets `disable-model-invocation`.
@@ -37,7 +37,7 @@ document now says.
 
 | File | Responsibility after this change |
 |---|---|
-| `skills/crew/references/plan-format.md` | New. The task section format, the yaml fields, path and porcelain rules, the wave list. The one place any of it is defined |
+| `skills/crew/references/plan-format.md` | New. The task section format, the yaml fields, path rules, the snapshot helper, the wave list. The one place any of it is defined |
 | `skills/crew/SKILL.md` | The plan schema table points at the reference. State layout gains the briefs directory |
 | `skills/crew-design/SKILL.md` | How to write task sections, and the self-check run before every gate |
 | `skills/crew-critique/SKILL.md` | Re-checks task sections after a round. No longer checks prose against `Tasks` |
@@ -63,7 +63,7 @@ files:
   - skills/crew/references/plan-format.md
   - skills/crew/SKILL.md          # schema table ~line 82-124, state ~line 53-58
 generates: []
-verify: "rg -q 'porcelain=v1 -z' skills/crew/references/plan-format.md && rg -q 'briefs/' skills/crew/SKILL.md && ! rg -q 'instruction' skills/crew/SKILL.md && [ $(wc -l < skills/crew/SKILL.md) -lt 200 ]"
+verify: "rg -q 'crew_snapshot' skills/crew/references/plan-format.md && rg -q 'briefs/' skills/crew/SKILL.md && ! rg -q 'instruction' skills/crew/SKILL.md && [ $(wc -l < skills/crew/SKILL.md) -lt 200 ]"
 ```
 
 **Interfaces**
@@ -72,14 +72,14 @@ verify: "rg -q 'porcelain=v1 -z' skills/crew/references/plan-format.md && rg -q 
 - Produces, and every later task cites these strings verbatim:
   - the reference path `skills/crew/references/plan-format.md`
   - the yaml keys `id`, `needs`, `files`, `generates`, `verify`
-  - the command `git status --porcelain=v1 -z`
+  - the helper name `crew_snapshot` and the command `git diff-tree -r --name-only -z`
   - the brief path `<repoRoot>/.crew/<slug>/briefs/<id>.md`
   - the section heading `## Wave list`
 
 - [ ] **Run the check first, and watch it fail**
 
 ```bash
-rg -q 'porcelain=v1 -z' skills/crew/references/plan-format.md
+rg -q 'crew_snapshot' skills/crew/references/plan-format.md
 ```
 
 Expect FAIL: the file does not exist yet.
@@ -155,16 +155,32 @@ Where a repository has no test harness, the shape holds with the check in place 
       post-wave guard, PR staging, the review fix guard, every push babysit makes, and the
       conformance lane's unowned-file finding.
 
-```markdown
-Entries in `files` and `generates` are exact paths. Nothing is stripped from them. A path can
-legitimately end in a colon and digits, so a line range never goes inside the path; it goes in a
-`#` comment beside it.
+````markdown
+Entries in `files` and `generates` are exact paths, relative to the repository root, with no
+`./` and no `..`. Nothing is stripped from them. A path can legitimately end in a colon and
+digits, so a line range never goes inside the path; it goes in a `#` comment beside it.
 
-Read the working tree with `git status --porcelain=v1 -z`, never plain `--porcelain`. The plain
-form quotes and octal-escapes any path outside ASCII, and writes a rename as `old -> new` in one
-entry. The `-z` form emits neither. Split on NUL, drop the leading status columns, and for a
-rename take both paths: the old one is a deletion the task must own too.
+A guard answers one question: which paths did this dispatch change? Snapshot the working tree
+before and after, and diff the two. A snapshot is a tree object built through a throwaway index,
+so the real one is never touched:
+
+```bash
+crew_snapshot() {
+  local i; i="$(mktemp -u)"
+  cp "$(git rev-parse --git-path index)" "$i" 2>/dev/null || true
+  GIT_INDEX_FILE="$i" git add -A
+  GIT_INDEX_FILE="$i" git write-tree
+  rm -f "$i"
+}
+
+git diff-tree -r --name-only -z "$BEFORE" "$AFTER"
 ```
+
+Exact paths, NUL separated, untracked files included, `.gitignore` honoured, a rename reported
+as its two paths. Never `git status`: it reports the state a path is in rather than whether it
+changed, so a file an earlier wave left at `M` stays at `M` when a later builder edits it and
+the guard sees nothing.
+````
 
 - [ ] **Add the wave list rule to the same file**
 
@@ -300,13 +316,13 @@ needs: [t1]
 files:
   - skills/crew-build/SKILL.md
 generates: []
-verify: "rg -q 'porcelain=v1 -z' skills/crew-build/SKILL.md && rg -q 'briefs/' skills/crew-build/SKILL.md && rg -q 'Wave list' skills/crew-build/SKILL.md && ! rg -qi 'tasks json' skills/crew-build/SKILL.md && [ $(wc -l < skills/crew-build/SKILL.md) -lt 200 ]"
+verify: "rg -q 'crew_snapshot' skills/crew-build/SKILL.md && rg -q 'briefs/' skills/crew-build/SKILL.md && rg -q 'Wave list' skills/crew-build/SKILL.md && ! rg -qi 'tasks json' skills/crew-build/SKILL.md && [ $(wc -l < skills/crew-build/SKILL.md) -lt 200 ]"
 ```
 
 **Interfaces**
 
 - Consumes, verbatim from t1: `skills/crew/references/plan-format.md`, the yaml keys,
-  `git status --porcelain=v1 -z`, `<repoRoot>/.crew/<slug>/briefs/<id>.md`, `## Wave list`.
+  `crew_snapshot`, `<repoRoot>/.crew/<slug>/briefs/<id>.md`, `## Wave list`.
 - Produces, and t5 consumes: the dispatch payload is the brief path, the plan's
   `## Global Constraints` block, and the worktree path. Nothing else.
 
@@ -339,15 +355,16 @@ Never paste the section into the prompt. A task section carries real code, and e
 dispatch prompt stays in your context for the rest of the run and is re-read every turn.
 ```
 
-- [ ] **Fix the porcelain reads in §4.** Both snapshots use `git status --porcelain=v1 -z`.
-      Add one line: split on NUL, drop the status columns, and for a rename own both paths. Do
-      not restate the rest of the path rule; cite `skills/crew/references/plan-format.md`.
+- [ ] **Replace the snapshots in §4.** Both become `crew_snapshot`, compared with
+      `git diff-tree -r --name-only -z`. Say why status cannot do this job: a file an earlier
+      wave left at `M` stays at `M` when this wave edits it. Do not restate the rest of the
+      rule; cite `skills/crew/references/plan-format.md`.
 
 - [ ] **Leave §5 and §6 alone.** Dedupe still collects `verify` strings into a set, and the
       circuit breaker is unchanged.
 
 - [ ] **Add three lines to the Never list:** never paste a task section into a dispatch prompt,
-      never read the tree with plain `git status --porcelain`, never proceed when the derived
+      never use `git status` as an ownership snapshot, never proceed when the derived
       waves disagree with the plan's `## Wave list`.
 
 - [ ] **Run the check.** Expect PASS on all five clauses.
@@ -364,33 +381,34 @@ files:
   - skills/crew-babysit/SKILL.md
   - skills/crew-pr/SKILL.md
 generates: []
-verify: "for f in skills/crew-review/SKILL.md skills/crew-babysit/SKILL.md skills/crew-pr/SKILL.md; do rg -q 'porcelain=v1 -z' \"$f\" || exit 1; rg -q 'plan-format.md' \"$f\" || exit 1; [ $(wc -l < \"$f\") -lt 200 ] || exit 1; done; ! rg -qi 'tasks json' skills/crew-pr/SKILL.md"
+verify: "for f in skills/crew-review/SKILL.md skills/crew-babysit/SKILL.md skills/crew-pr/SKILL.md; do rg -q 'crew_snapshot' \"$f\" || exit 1; rg -q 'plan-format.md' \"$f\" || exit 1; [ $(wc -l < \"$f\") -lt 200 ] || exit 1; done; ! rg -qi 'tasks json' skills/crew-pr/SKILL.md"
 ```
 
 **Interfaces**
 
-- Consumes, verbatim from t1: `skills/crew/references/plan-format.md`,
-  `git status --porcelain=v1 -z`, and the keys `files` and `generates`.
+- Consumes, verbatim from t1: `skills/crew/references/plan-format.md`, `crew_snapshot`,
+  `git diff-tree -r --name-only -z`, and the keys `files` and `generates`.
 - Produces: nothing. Three leaves.
 
 - [ ] **Run the check first, and watch it fail**
 
 ```bash
-rg -q 'porcelain=v1 -z' skills/crew-pr/SKILL.md
+rg -q 'crew_snapshot' skills/crew-pr/SKILL.md
 ```
 
-Expect FAIL: none of the three names the `-z` form today.
+Expect FAIL: none of the three uses a snapshot today.
 
 - [ ] **`crew-pr`.** Line 13 reads the Tasks JSON block; it now reads the task sections. The
       staging union at line 53 is the union of every task's `files` and `generates` from the
-      yaml headers. The changed-path check at line 34 uses `git status --porcelain=v1 -z` and
-      cites `skills/crew/references/plan-format.md` for how to read it. Never `git add .` is
-      unchanged.
+      yaml headers. The changed-path check at line 34 becomes
+      `git diff-tree -r --name-only -z HEAD "$(crew_snapshot)"`, which is every path differing
+      from the last commit. Never `git add .` is unchanged.
 
 - [ ] **`crew-review`.** The fix-loop guard near line 111 keeps its existing and correct rule
-      that a fixer is scoped to the finding's own paths and never to the whole plan union. Only
-      the read changes: paths come from the task sections, and the tree is read with
-      `git status --porcelain=v1 -z`.
+      that a fixer is scoped to the finding's own paths and never to the whole plan union. Two
+      things change: paths come from the task sections, and the before-and-after pair becomes
+      `crew_snapshot`. Also pass the conformance lane the changed-path list, because it reads a
+      diff and a diff cannot show an untracked file.
 
 - [ ] **`crew-babysit`.** Same change at its push guard near line 109. This file is at 174
       lines, so cite the reference rather than restating the path rule, and put nothing new in
@@ -449,7 +467,19 @@ Expect FAIL: the frontmatter description says "from a crew plan's Tasks JSON".
       work backward from the goal and a file map alone cannot answer that.
 
 - [ ] **`crew-conformance` findings table.** The `Unowned` row now says: files changed that no
-      task's `files` or `generates` claimed, read from the yaml headers.
+      task's `files` or `generates` claimed, read from the yaml headers, compared exactly per
+      `skills/crew/references/plan-format.md`, and with a note that a diff omits untracked
+      files so absence of evidence is reported rather than counted as clean.
+
+- [ ] **Add an `Unconstrained` row to the same table**
+
+```markdown
+| Unconstrained | A `Global Constraints` line the diff breaks |
+```
+
+`Global Constraints` is new to the schema in t1, and without this row nothing reads it. The
+lane that judges a diff against the approved plan is where a constraint the plan states and the
+diff breaks should surface.
 
 - [ ] **Run the check.** Expect PASS on all five clauses, including both model pins.
 
@@ -463,13 +493,21 @@ needs: [t2, t3, t4, t5]
 files:
   - README.md
   - docs/design.md
+  - docs/plans/2026-08-10-plan-format-design.md          # ships as written
+  - docs/plans/2026-08-10-plan-format-example.md         # ships as written
+  - docs/plans/2026-08-10-plan-format-implementation.md  # this file
 generates: []
-verify: "! rg -qi 'tasks json' README.md && rg -q 'plan-format' README.md && rg -q '2026-08-10' docs/design.md"
+verify: "! rg -qi 'tasks json' README.md && rg -q 'plan-format' README.md && rg -q '2026-08-10' docs/design.md && ls docs/plans/2026-08-10-plan-format-{design,example,implementation}.md"
 ```
+
+The last three are already written and are not edited by this task. They are listed because
+every changed path must sit in some task's union or the PR guard stops the commit, and these
+three are in the change. A planning artifact that ships with its own work still has to be owned
+by something.
 
 **Interfaces**
 
-- Consumes: the finished behaviour of t2 through t5.
+- Consumes: nothing. `needs` carries the ordering.
 - Produces: nothing. Leaf.
 
 - [ ] **Run the check first, and watch it fail**
@@ -532,19 +570,26 @@ done
 # the old contract is gone from every runtime reader
 ! rg -i 'tasks json' skills/ agents/ README.md
 
-# every `git status` call uses the -z form; the two prose prohibitions are not calls
-rg -n 'git status --porcelain' skills/ | rg -v 'porcelain=v1 -z' | rg -v 'Never read the tree with plain'
+# no guard uses git status. every remaining mention must be a prohibition
+rg -n 'git status' skills/ agents/ | rg -v -i 'never'
 # expect no output
+
+# every guard names the snapshot helper
+for f in skills/crew-build skills/crew-review skills/crew-babysit skills/crew-pr; do
+  rg -q 'crew_snapshot' "$f/SKILL.md" || echo "NO SNAPSHOT $f"
+done
 
 # the plugin still loads
 cursor-agent --plugin-dir . 2>&1 | rg -i 'skill|subagent'
 ```
 
-That porcelain check was wrong twice. A negative lookahead matches the reference file's own
-prohibition, since the reference has to name the plain form in order to forbid it. Filtering
-on `--porcelain` alone then matches `git worktree list --porcelain`, which is a different
-command and correct as written, in `crew-intake` and in `crew`'s State section. Anchoring on
-`git status --porcelain` and excluding the one prohibition is the version that holds.
+Checking this took three tries, and each failure is worth keeping. A negative lookahead on
+`porcelain(?!=v1 -z)` matched the reference's own prohibition, because the reference has to name
+the banned form in order to ban it. Filtering on `--porcelain` alone then matched
+`git worktree list --porcelain`, a different command that is correct as written, in
+`crew-intake` and in `crew`'s State section. The version above works because the rule got
+simpler: no guard uses `git status` at all, so any line mentioning it is prose, and prose about
+a banned thing says "never".
 
 Then run `/crew` on a real ticket through Gate 1 to a built wave, and check four things: no
 sentence in `Approach` restates a task, every task section opens with a yaml header that parses
