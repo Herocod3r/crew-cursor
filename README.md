@@ -227,7 +227,7 @@ otherwise. It never creates, moves, or deletes a worktree or branch.
   ├─ crew-critique   different-family critic → BLOCK | REVISE | PROCEED
   ├─ GATE 1          plan + verdict. Stop. Wait.
   │
-  ├─ crew-build      waves from the Tasks JSON → parallel builders → verify each wave
+  ├─ crew-build      waves from each task's needs → parallel builders → verify each wave
   ├─ crew-review     bugbot ‖ security-review ‖ crew-conformance → coalesce → fix
   ├─ GATE 2          diff + findings. Stop. Wait.
   │
@@ -260,15 +260,22 @@ Size gates only research and critique. Every run builds, reviews, and merges.
 
 ## Files per run
 
-Two, at `<main-checkout>/.crew/<slug>/`, git-ignored, surviving worktree teardown.
+At `<main-checkout>/.crew/<slug>/`, git-ignored, surviving worktree teardown.
 
 | File | For |
 |---|---|
-| `plan.md` | You. Goal, why, decisions, assumptions, approach, tasks, verify, non-goals. |
+| `plan.md` | You. Goal, why, decisions, assumptions, constraints, approach, tasks, verify, non-goals. |
 | `state.json` | The machine. Phase, size, gates, critique counts, git context. |
+| `briefs/<id>.md` | One builder. A copy of one task section, written at dispatch. |
 
-`Tasks` inside `plan.md` is a JSON block, not prose — it is the contract the build phase
-will consume without reinterpreting it.
+Under `## Tasks`, `plan.md` carries one `### tN` section per task. Each opens with a fenced
+`yaml` header — `id`, `needs`, `files`, `generates`, `verify` — and continues with the
+interfaces it hands across and the steps to take, as checkboxes with real code and exact
+commands. The header is what schedules the work; the steps are what a builder types.
+
+Behaviour is described once, in the task that implements it. `Approach` is a diagram and a
+file map and never restates a task, because two copies drift and the builders follow the one
+nobody proofread. Format in `skills/crew/references/plan-format.md`.
 
 ## Status
 

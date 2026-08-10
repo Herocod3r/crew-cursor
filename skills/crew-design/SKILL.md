@@ -48,22 +48,24 @@ better pattern that is not.
 
 To the schema in the `crew` skill, at `<repoRoot>/.crew/<slug>/plan.md`.
 
-`Tasks` is a fenced `json` block, not prose. It is what the build phase consumes.
+`Tasks` is one `### tN` section per task. Each opens with a fenced `yaml` header, then
+`**Interfaces**`, then steps as checkboxes. The format is in
+`skills/crew/references/plan-format.md`. Read it before writing your first task.
 
-```json
-[
-  { "id": "t1", "files": ["path/a"], "generates": [],
-    "interfaces": { "produces": [], "consumes": [] },
-    "instruction": "", "verify": "", "needs": [] }
-]
-```
+Write the steps so the builder types rather than decides. A step whose deliverable is code
+shows the code. A step that runs something gives the command and what its output should say.
+Test-first, so that the step before the change is the one that watches the check fail.
+
+`Approach` is a diagram and a file map, and it never describes what a task does. Behaviour
+belongs to the task that implements it, once. Two copies drift, and the builders follow the
+copy nobody proofread.
 
 `generates` lists files the task produces but does not author — lockfiles, generated code,
-snapshots. Optional, defaults to empty. Ownership is `files ∪ generates`, and the build and
-PR phases key on that union, so a task that will touch a lockfile must say so here or the
-build stops on an unowned change.
+snapshots. Ownership is `files ∪ generates`, and five later readers key on that union, so a
+task that will touch a lockfile must say so or the build stops on an unowned change.
 
-One owner per union across the array. `needs` yields waves by topological sort. Every task
+One owner per path across the whole plan, not per wave. Derive `## Wave list` from `needs` by
+topological sort; the build phase derives it again and stops if the two disagree. Every task
 carries a real verify command — a task with nothing to run is a task nobody can check.
 
 Scope that command to the task. It runs the tests covering the task's own `files`
@@ -82,16 +84,16 @@ commands make every one of those multiplications cheap.
 
 Each builder gets one task and cannot see the others. Where tasks hand off, name the seam.
 
-`produces` is every signature a later task will call: exact name, parameter and return
-types. `consumes` is what this task calls from an earlier one, copied verbatim from that
-task's `produces` — copied, not paraphrased, because the whole value is that the two strings
+`Produces` is every signature a later task will call: exact name, parameter and return
+types. `Consumes` is what this task calls from an earlier one, copied verbatim from that
+task's `Produces` — copied, not paraphrased, because the whole value is that the two strings
 are identical.
 
-Signatures only, never bodies. This is not licence to write code samples; it is the boundary
-between tasks, and nothing else belongs in it. A task at a leaf with no callers has an empty
-`produces`, and that is normal.
+Signatures only, never bodies. The steps are where code goes; this is the boundary between
+tasks, and nothing else belongs in it. A task at a leaf with no callers has an empty
+`Produces`, and that is normal.
 
-A `consumes` entry whose producer is not in `needs` is a dependency bug, not an interface
+A `Consumes` entry whose producer is not in `needs` is a dependency bug, not an interface
 one — the two tasks would land in the same wave and run in parallel. Fix `needs`.
 
 ## 6. Check the plan against itself
@@ -101,19 +103,23 @@ checklist you run yourself, not a subagent dispatch.
 
 | Check | Failure it catches |
 |---|---|
-| Every `consumes` string appears verbatim in some `produces` | `clearLayers()` in one task, `clearFullLayers()` in another. Both builders are right; the code does not compile. |
-| No symbol appears in two tasks' `produces` | Two builders define the same thing in parallel and the second overwrites the first. |
-| Every `consumes` has its producer in `needs` | The two tasks land in the same wave and race. |
-| Names in the prose match names in `Tasks` | The human approves one design and the builders execute another. |
+| Every task's `yaml` header parses | A quoting slip in `verify` should stop this phase, not the build. |
+| The header count equals the `### tN` count under `## Tasks` | A `yaml` block shown as an example parses as a task nobody meant to schedule. |
+| Every `Consumes` string appears verbatim in some `Produces` | `clearLayers()` in one task, `clearFullLayers()` in another. Both builders are right; the code does not compile. |
+| No symbol appears in two tasks' `Produces` | Two builders define the same thing in parallel and the second overwrites the first. |
+| Every `Consumes` has its producer in `needs` | The two tasks land in the same wave and race. |
+| No path appears in two tasks' `files ∪ generates` | Two builders write one file at the same time. |
+| `## Wave list` matches a topological sort of `needs` | A `needs` edge for setup order or shared state has no interface to check it. |
+| No step contains anything from the never-write list in `references/plan-format.md` | The builder is handed "handle edge cases" and invents a design. |
 | Every task's `verify` can actually fail | A check that passes on the unchanged tree verifies nothing. |
 | No task's `verify` runs the whole suite | The suite runs once per task per wave instead of once, and the build takes hours. |
 
 Fix what you find inline and move on. No re-review.
 
 The last two are not hypothetical. On crew's own v2 plan the merge conditions were made safe
-in the prose while `Tasks` still carried the unsafe predicate, and only a second critique
-round caught it — the builders follow `Tasks`, so the prose fix had changed nothing. Revise
-both in the same edit, always.
+in the `Approach` prose while the task that implemented them still carried the unsafe
+predicate, and only a second critique round caught it. That is why behaviour is now written
+once: there is no second copy to fix, and no second copy to forget.
 
 ## Anti-bloat
 
@@ -122,10 +128,14 @@ mapped in a coverage map, code samples for every interface and every non-trivial
 That pressure is what made its designs long and generic. Do not reproduce it.
 
 - Never write a requirement-to-task coverage map.
-- Never write code samples for every interface. Pseudocode only where an interface is genuinely ambiguous.
+- Never let `Approach` describe what a task does. A diagram and a file map, nothing else.
 - Never restate the goal in three sections.
 - Never pad `Decisions` with choices nobody would question.
-- Length is not thoroughness. A plan that fits on a screen and is right beats four pages that hedge.
+- Length is not thoroughness. A plan whose prose fits on a screen and whose tasks leave nothing to invent beats four pages that hedge.
+
+Code in a step is not bloat, and its absence is a failure. A step whose deliverable is code
+and which shows no code hands the decision to a builder that cannot ask you what you meant.
+The English describing a change is usually longer than the change.
 
 ## Next
 
