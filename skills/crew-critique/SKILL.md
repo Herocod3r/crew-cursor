@@ -97,15 +97,15 @@ plan's framing, and it is where an approach you never evaluated shows up.
 ## 4b. Re-check the plan against itself
 
 Any round that edited the plan invalidates the checks from `crew-design` section 6. Run all
-of them again before Gate 1 — the prose against `Tasks`, and the `interfaces` invariants.
+of them again before Gate 1.
 
-Prose and `Tasks` drift because a round tightens the prose and leaves `Tasks` alone, and
-`Tasks` is what the build phase executes, so the fix never ships. This is not hypothetical;
-it happened on crew's own v2 plan, where the merge conditions were made safe in prose while
-`Tasks` still carried the unsafe predicate.
+A round that edits a task must leave that task's `yaml` header, its `Interfaces` and its steps
+saying the same thing. Tightening a step and leaving the header alone is the same defect the
+old format had between prose and `Tasks`, moved inside one section, and the section 6 table is
+what proves it did not happen.
 
-Interfaces break the same way. Renaming a symbol in one task's `produces` and not in its
-consumers' `consumes` reads as a clean edit and lands as two names for one thing.
+Interfaces break the most quietly. Renaming a symbol in one task's `Produces` and not in its
+consumers' `Consumes` reads as a clean edit and lands as two names for one thing.
 
 ## 5. Gate 1
 

@@ -16,11 +16,13 @@ Bugs and security are covered by other lanes. Stay in your lane.
 
 ## Method
 
-1. Read the plan's `Goal`, `Approach`, and `Tasks`.
+1. Read the plan's end-to-end contract: `Goal`, `Architecture`, the `Approach` diagram and
+   file map, `Global Constraints`, and `Verify`. Then read the task sections.
 2. Read the diff.
 3. Work backward from the goal, not forward from the diff. "Every task has code" is not
    the same as "the goal is met" — tasks can each be satisfied while the thing as a whole
-   does not work.
+   does not work. That contract in step 1 is what tells you what the whole is; a task tells
+   you only its own part.
 4. Re-derive everything from the diff and the plan. You will be given no notes from the
    builders, and you should not go looking for any. A reviewer told what the author
    intended reviews the intention.
@@ -31,7 +33,8 @@ Bugs and security are covered by other lanes. Stay in your lane.
 |---|---|
 | Missing | A task's stated outcome has no code behind it |
 | Drifted | The code solves something adjacent to what the plan specified |
-| Unowned | Files changed that no task's `files` or `generates` claimed |
+| Unowned | Files changed that no task's `files` or `generates` claimed, read from the `yaml` headers |
+| Unconstrained | A `Global Constraints` line the diff breaks |
 | Over-built | Abstraction, configurability, or generality the plan never asked for |
 | Dead | Code nothing reaches |
 | Untestable | A task's `verify` command cannot actually prove its outcome |

@@ -102,13 +102,14 @@ Dispatch `crew-builder` by `subagent_type` alone for each fix — its model is p
 agent definition, so never pass a model parameter. One finding per dispatch when
 fixes touch different files; batch only when the same builder owns every path.
 
-Pass: the finding (location, problem, suggested fix), the owning task id if known, plan
-path, worktree path, and an **explicit allowed-path list** — the plan's `files ∪
-generates`, narrowed to the paths the finding concerns. The builder changes code only, no
-commits.
+Pass: the finding (location, problem, suggested fix), the owning task id if known, the task's
+brief path, worktree path, and an **explicit allowed-path list** — the `files ∪ generates` of
+the task sections involved, narrowed to the paths the finding concerns. The builder changes
+code only, no commits.
 
-After each fix, run `git status --porcelain` and compare against **that finding's allowed
-list**, not the whole plan union. Comparing against the union would pass any file the plan
+After each fix, run `git status --porcelain=v1 -z` — never the plain form, which hides
+renames and quotes non-ASCII paths, per `skills/crew/references/plan-format.md` — and compare
+against **that finding's allowed list**, not the whole plan union. Comparing against the union would pass any file the plan
 touches anywhere, which lets a one-line fix silently broaden the diff. Anything outside the
 allowed list is escalated, never kept silently.
 
