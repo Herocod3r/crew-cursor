@@ -1,15 +1,17 @@
 ---
 name: crew-build
-description: Executes the Tasks JSON from plan.md wave by wave via crew-builder subagents, with ownership guards and per-wave verification. Use as phase 5 of a crew run.
+description: Executes the task sections of plan.md wave by wave via crew-builder subagents, with ownership guards and per-wave verification. Use as phase 5 of a crew run.
 ---
 
 # crew-build
 
 Phase 5. Gate 1 is approved. You orchestrate; builders execute.
 
-Read the Tasks JSON block from `<repoRoot>/.crew/<slug>/plan.md`. Set `phase` to `build`
-in `state.json`. Write state on entry, not on exit — a crash mid-wave must resume into
-build, not skip it.
+Read every `### tN` section under `## Tasks` in `<repoRoot>/.crew/<slug>/plan.md` and parse
+each one's `yaml` header. Structure is only what sits outside a fenced block, and a task's
+header is the first `yaml` fence after its heading; the rest of the rules are in
+`skills/crew/references/plan-format.md`. Set `phase` to `build` in `state.json`. Write state
+on entry, not on exit — a crash mid-wave must resume into build, not skip it.
 
 Initialise `waveCursor` to `0` **only when it is absent**. A resumed run continues from the
 saved cursor. Resetting it on entry re-runs waves that already completed, which is the
@@ -28,6 +30,10 @@ needs: ["t1","t2"]  → after both complete
 Each wave is every task whose `needs` are satisfied by earlier waves. Waves are ordered
 and indexed from `0`. Completion is tracked per wave, not per task — there is no built
 flag on individual tasks, and a wave is done only when every task in it passed verify.
+
+Compare what you derived against the plan's `## Wave list`. On any disagreement, stop and show
+both. That list was derived from the same `needs` at design time, so two derivations differing
+means one of you misread the plan, and the human should see which before a builder runs.
 
 **Consume `waveCursor`.** Skip every wave with an index below it, and write the new value
 after each wave passes its guard and verify. Not resetting the cursor on entry is only
@@ -48,14 +54,20 @@ When serializing, run tasks in stable `id` order within the wave slot.
 
 ## 3. Dispatch
 
+Write the task's whole section verbatim to `<repoRoot>/.crew/<slug>/briefs/<id>.md` first.
+
 For each task in the current wave, dispatch `crew-builder` by `subagent_type` alone. Its
 model is pinned in `agents/crew-builder.md`; never pass a model parameter.
 
-Pass: task `id`, full task spec (`files`, `generates`, `interfaces`, `instruction`,
-`verify`), plan path, worktree path from `state.json.git.worktreePath`.
+Pass: the brief path, the plan's `## Global Constraints` block, and the worktree path from
+`state.json.git.worktreePath`. Nothing else, and never the plan path.
 
-`interfaces` is not optional to pass. It is the only place a builder learns the names its
-neighbours use, and it cannot see their tasks.
+Never paste the section into the prompt. A task section carries real code, and everything in
+a dispatch prompt stays in your context for the rest of the run and is re-read every turn.
+Ten builders' worth of task text is ten copies you pay for on every later turn.
+
+The brief is the whole spec, `**Interfaces**` included. That block is the only place a builder
+learns the names its neighbours use, and it cannot see their tasks.
 
 Parallel when unions are disjoint. One builder per task. Never batch unlike tasks into one
 dispatch.
@@ -77,8 +89,12 @@ A builder reporting PASS is a claim. You run verification yourself in step 5.
 Before dispatching a wave:
 
 ```bash
-git status --porcelain
+git status --porcelain=v1 -z
 ```
+
+Never the plain form: it writes a rename as `old -> new` in one entry and quotes any path
+outside ASCII. Split on NUL, drop the two status columns and the space, and for a rename take
+both paths. Full rules in `skills/crew/references/plan-format.md`.
 
 Save the snapshot. After every builder in the wave finishes, snapshot again.
 
@@ -152,6 +168,9 @@ When all tasks are built, set `phase` to `review`. Load `crew-review`.
 - Never compare the full dirty tree in the post-wave guard — only this wave's delta.
 - Never absorb a changed file outside the wave's unions.
 - Never hand-number waves instead of deriving them from `needs`.
+- Never proceed when your derived waves disagree with the plan's `## Wave list`.
+- Never paste a task section into a dispatch prompt. Write the brief and pass its path.
+- Never read the tree with plain `git status --porcelain`.
 - Never retry a task a third time after two failures.
 - Never commit, push, or stage in this phase.
 - Never advance past build without writing `state.json`.

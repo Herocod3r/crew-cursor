@@ -50,9 +50,12 @@ Never guess which run is meant. Never silently skip a state file you failed to p
 
 ## State
 
-`state.json` and `plan.md` live in `<repoRoot>/.crew/<slug>/`, where `repoRoot` is the
-main checkout — the first `worktree` line of `git worktree list --porcelain`. State
-outlives worktree teardown and eviction.
+`state.json`, `plan.md` and `briefs/<id>.md` live in `<repoRoot>/.crew/<slug>/`, where
+`repoRoot` is the main checkout, the first `worktree` line of
+`git worktree list --porcelain`. State outlives worktree teardown and eviction.
+
+`briefs/<id>.md` holds one task section, copied verbatim at dispatch and read by one builder.
+A builder never opens `plan.md`.
 
 Never derive `repoRoot` from `git rev-parse --git-common-dir`. In a submodule that
 resolves under `.git/modules/`, which writes state into Git internals.
@@ -85,43 +88,32 @@ Read and write these with your own file tools. There is no helper script.
 |---|---|
 | Goal | One paragraph. What done looks like. |
 | Why | The problem. Evidence, with `file:line` or URL. |
+| Architecture | Two or three sentences on the approach. |
+| Tech Stack | What it is built on. One line. |
 | Decisions | Table: decision, rationale, what was rejected. |
 | Assumptions | Unknowns accepted without closing, each human-approved. Empty is valid. |
-| Approach | Prose plus a diagram. Pseudocode only where an interface is genuinely ambiguous. |
-| Tasks | Fenced `json` block. The machine contract. |
+| Global Constraints | Project-wide requirements, one line each, exact values verbatim. Every task's requirements implicitly include this. |
+| Approach | A diagram and a file map: what each file is responsible for. Never a description of what a task does. |
+| Tasks | One `### tN` section per task. Format in `references/plan-format.md`. |
+| Wave list | Derived from every task's `needs` by topological sort. |
 | Verify | Commands proving the whole thing works. The one place a whole-suite run belongs, and it runs once. |
 | Non-goals | Explicitly out of scope. |
 
-```json
-[
-  { "id": "t1", "files": ["path/a"], "generates": [],
-    "interfaces": { "produces": [], "consumes": [] },
-    "instruction": "", "verify": "", "needs": [] }
-]
-```
+Each task section opens with a fenced `yaml` header carrying `id`, `needs`, `files`,
+`generates` and `verify`, then `**Interfaces**` and the steps. Ownership is `files ∪
+generates`, and it drives everything: parallel dispatch, the post-wave changed-file guard, PR
+staging, the review fix loop and every push babysit makes. One owner per path across the whole
+plan, not per wave.
 
-| Field | Meaning |
-|---|---|
-| `files` | Files the task authors. |
-| `generates` | Files it produces but does not author — lockfiles, generated code, snapshots. Optional, defaults to empty. |
-| `interfaces.produces` | Exact signatures later tasks rely on: names, parameter and return types. Optional. |
-| `interfaces.consumes` | Signatures this task relies on, copied verbatim from the task that produces them. Optional. |
-| `verify` | Checks this task alone, scoped to its `files`. Never the whole suite — builders run it per task and undeduplicated, so a broad command is multiplied by the wave. |
-
-Ownership is `files ∪ generates`, and it drives everything: parallel dispatch, the
-post-wave changed-file guard, and PR staging. One owner per union across the whole array.
-`needs` yields waves by topological sort.
-
-`interfaces` is the contract between tasks, and it holds two invariants: every `consumes`
-string appears verbatim in the `produces` of a task reachable through `needs`, and no symbol
+`Interfaces` is the contract between tasks, and it holds two invariants: every `Consumes`
+string appears verbatim in the `Produces` of a task reachable through `needs`, and no symbol
 is produced twice. Both are checkable, which is the point — a builder is dispatched with one
 task and cannot see its neighbours, so a name written two ways in the plan becomes a name
 written two ways in the code.
 
-Never write a requirement-to-task coverage map. Never write code samples for every
-interface. `interfaces` carries signatures, not bodies: it exists because tasks hand off to
-each other, not to document the design. That combination of a coverage map and code
-everywhere is what made the predecessor's designs bloated and generic.
+Behaviour is described once, in the task that implements it. Prose that restates a task is the
+defect this format exists to remove: the two copies drift, and the builders follow the one
+nobody proofread. Never write a requirement-to-task coverage map either.
 
 ## Sizing
 

@@ -10,14 +10,14 @@ Phase 7. Gate 2 is approved. Everything from here is outward-facing.
 Set `phase` to `pr` in `state.json` on entry. Write state on entry, not on exit — a crash
 mid-phase must resume into PR, not skip it.
 
-Read the Tasks JSON block from `<repoRoot>/.crew/<slug>/plan.md`. Work in
-`state.json.git.worktreePath` on branch `state.json.git.branch`.
+Read the `yaml` header of every `### tN` section in `<repoRoot>/.crew/<slug>/plan.md`, per
+`skills/crew/references/plan-format.md`. Work in `state.json.git.worktreePath` on branch
+`state.json.git.branch`.
 
 ## 1. Compute the staging set
 
-Ownership is `files ∪ generates` for every task. Optional `generates` defaults to empty.
-PR staging uses the **union across all tasks** — the same contract as build dispatch and
-the post-wave guard.
+Ownership is `files ∪ generates` for every task. PR staging uses the **union across all
+tasks** — the same contract as build dispatch and the post-wave guard.
 
 Never `git add .` or `git add -A`. Stage named paths only:
 
@@ -28,10 +28,15 @@ git -C <worktreePath> add -- <path1> <path2> …
 ## 2. Guard the tree
 
 ```bash
-git -C <worktreePath> status --porcelain
+git -C <worktreePath> status --porcelain=v1 -z
 ```
 
-Every changed path in the worktree must appear in some task's `files ∪ generates`.
+Never the plain form. It writes a rename as `old -> new` in one entry and quotes anything
+outside ASCII, so both would read as paths no task owns. Reading rules in
+`skills/crew/references/plan-format.md`.
+
+Every changed path in the worktree must appear in some task's `files ∪ generates`, and a
+rename contributes both of its paths.
 
 | Situation | Action |
 |---|---|

@@ -161,6 +161,13 @@ One owner per file across the whole array. `needs` yields the waves by topologic
 never hand-number them. Never a requirement-to-task coverage map. Never code samples for
 every interface — pseudocode only where an interface is genuinely ambiguous.
 
+> **Amended 2026-08-10.** The `json` block above was replaced by one `### tN` markdown section
+> per task, each opening with a `yaml` header. The ban on code samples was reversed: a step
+> whose deliverable is code and which shows no code is now a plan failure. The rest of this
+> section stands, ownership and topological waves included. Reasoning in
+> `docs/plans/2026-08-10-plan-format-design.md`; format in
+> `skills/crew/references/plan-format.md`.
+
 ### Fact sufficiency
 
 Before writing the plan, list every unknown the design depends on. Each must be closed by
