@@ -97,7 +97,7 @@ Read and write these with your own file tools. There is no helper script.
 | Approach | A diagram and a file map: what each file is responsible for. Never a description of what a task does. |
 | Tasks | One `### tN` section per task. Format in `references/plan-format.md`. |
 | Wave list | Derived from every task's `needs` by topological sort. |
-| Verify | Commands proving the whole thing works. The review phase runs these once after review fixes and before Gate 2. |
+| Verify | Whole-run proof. Each fenced `bash` block is one exact command, deduplicated and run once after review fixes from the worktree root as `bash -euo pipefail -c "$block"`. Prose after the blocks is manual checks, run once. The review phase runs these once before Gate 2. |
 | Non-goals | Explicitly out of scope. |
 
 Each task section opens with a fenced `yaml` header carrying `id`, `needs`, `files`,

@@ -144,19 +144,18 @@ After the fix loop, before Gate 2. Read `## Verify` in `plan.md`. Treat each fen
 worktree root in a fail-fast shell. Execute with `bash -euo pipefail -c "$block"`. Run prose
 manual checks once after the blocks.
 
-Persist `reviewVerify` in `state.json`. Set `status` to `running` before execution and the
-final status plus check summaries before Gate 2. A resumed `running` status stops rather
-than starting a duplicate process.
+Persist `reviewVerify` in `state.json`. Before each command, write enough running evidence
+to identify it and set `status` to `running`. On resume with `running`, continue observing
+the same live process when possible. If no live process exists, append interrupted `fail`
+evidence, set `status` to `fail`, set `phase` to `gate2`, write state, and present blocked Gate 2. Never start a duplicate automatically. Set the final status plus check summaries before Gate 2. Aggregate success: all checks pass → `pass`; any proved gap and no failure → `environment_gap`.
 
 - Run proof commands directly. Do not pipe them through `tail`, `head`, `rg`, or another
   output filter that changes which exit status is observed.
 - Keep one process per command. If the user asks for status, report and continue the same running command.
-- A code failure stops the phase. Set `phase` to `gate2` and present a blocked Gate 2 with the
-  exact command, exit status, and output. Do not dispatch another builder or change the reviewed
-  diff. The human cannot approve Gate 2 while the failure remains.
-- Persist every check result in `reviewVerify.evidence`. Gate 2 cannot be approved while
-  `reviewVerify.status` is `pending`, `running`, or `fail`; `environment_gap` requires explicit
-  acceptance.
+- A code failure stops the phase. Append evidence, set `reviewVerify.status` to `fail` and
+  `phase` to `gate2`, write state once, then present blocked Gate 2 with the exact command,
+  exit status, and output. Do not dispatch another builder or change the reviewed diff.
+- Persist every check result in `reviewVerify.evidence`.
 - A malformed invocation can be corrected once.
 - A missing prerequisite is an environment gap only after proving it is outside the repository,
   unchanged by the diff, and not replaceable by another local proof. Repo-controlled fixtures,

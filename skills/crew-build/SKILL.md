@@ -86,7 +86,7 @@ Concerns: omit if none
 Blocked: omit if none
 ```
 
-A builder reporting PASS is a claim. You run verification yourself in step 5.
+A builder verify report is a claim. Step 5 validates it and decides whether you rerun.
 
 ## 4. Post-wave guard
 
@@ -134,8 +134,8 @@ attribution.
 
 **Serialization.** Run verify commands serially when they share databases, ports, fixture
 directories, build caches, spawn their own workers, or saturate the same CPU pool; never run
-two xdist-style suites concurrently. Uncertain resource use serializes too. Everything else
-may run in parallel.
+two xdist-style suites concurrently. When serializing orchestrator verify, run in stable
+task `id` order. Uncertain resource use serializes too. Everything else may run in parallel.
 
 Read exit codes and output. A task passes only when its command was run and exited zero.
 
@@ -157,10 +157,12 @@ Track failures per task and per run. Record at most one breaker event per task a
 | Same task fails twice | Stop the line. Surface to human. |
 | Three failures across the run (any tasks) | Stop the line. Surface to human. |
 
-A failure is: builder `BLOCKED`, post-wave guard stop, verify exit non-zero after you
-ran it (including a single-task fallback rerun or integrated multi-task verify), or
-ownership-guard stop. A complete zero-exit verify report for a single-task wave is not a
-failure. `DONE_WITH_CONCERNS` counts as success unless verify fails.
+A failure is: builder `BLOCKED`, a builder-reported non-zero verify exit (even when a
+later fallback passes), post-wave ownership-guard stop, or verify exit non-zero after you
+ran it (single-task fallback rerun or integrated multi-task verify). A complete zero-exit
+verify report for a single-task wave is not a failure. On a single-task wave,
+`DONE_WITH_CONCERNS` triggers the fallback rerun. On a multi-task wave, it succeeds only
+when integrated verify passes.
 
 Never retry a third time on the same task. Two failures on one task is usually a wrong
 plan, not a wrong builder.
@@ -178,7 +180,7 @@ When all tasks are built, set `phase` to `review`. Load `crew-review`.
 - Never dispatch parallel builders whose `files ∪ generates` overlap.
 - Never parallelize tasks that share a `generates` path.
 - Never parallelize tasks whose `verify` commands touch shared state, spawn workers, or saturate CPU.
-- Never trust a builder's verify report as the wave's verification.
+- Never treat a builder verify report as wave proof on a multi-task wave; a complete report satisfies a single-task wave.
 - Never compare the full dirty tree in the post-wave guard — only this wave's delta.
 - Never absorb a changed file outside the wave's unions.
 - Never hand-number waves instead of deriving them from `needs`.
