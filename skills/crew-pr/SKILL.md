@@ -28,11 +28,12 @@ git -C <worktreePath> add -- <path1> <path2> …
 ## 2. Guard the tree
 
 ```bash
-git -C <worktreePath> status --porcelain=v1 -z
+git -C <worktreePath> status --porcelain=v1 -z --untracked-files=all
 ```
 
-Never the plain form. It writes a rename as `old -> new` in one entry and quotes anything
-outside ASCII, so both would read as paths no task owns. Reading rules in
+Exactly this string. Without `-z` a rename is one entry with an arrow and non-ASCII paths come
+back quoted; without `--untracked-files=all` a new file in a new directory is reported as the
+directory. Each would read as a path no task owns. Reading rules in
 `skills/crew/references/plan-format.md`.
 
 Every changed path in the worktree must appear in some task's `files ∪ generates`, and a

@@ -83,17 +83,36 @@ Five readers compare a changed path against a task's `files ∪ generates`: the 
 PR staging, the review fix guard, every push babysit makes, and the conformance lane's
 unowned-file finding. One owner per path across the whole plan, not per wave.
 
-Read the working tree with `git status --porcelain=v1 -z`, never plain `--porcelain`. The plain
-form writes a rename as `old -> new` in one entry and quotes anything outside ASCII:
+Paths are relative to the repository root, with no `./` and no `..`. Quote any path containing
+`: ` or a leading character yaml would read as syntax.
+
+Read the working tree with exactly this, everywhere:
+
+```bash
+git status --porcelain=v1 -z --untracked-files=all
+```
+
+Split on NUL, drop the two status columns and the space, and for a rename take **both** paths —
+the old one is a deletion the task must own too.
+
+Each flag is load-bearing. Plain `--porcelain` writes a rename as `old -> new` in one entry and
+quotes anything outside ASCII, so both read as paths no task owns. Without
+`--untracked-files=all`, a new file in a new directory is reported as the directory:
 
 ```
- M sub/cost.py:51
-R  sub/oldname.py -> sub/newname.py
-?? "sub/spac\303\251 name.py"
+$ git status --porcelain=v1 -z                        →  ?? newdir/
+$ git status --porcelain=v1 -z --untracked-files=all  →  ?? newdir/other.py
+                                                         ?? newdir/sub/new.py
 ```
 
-The `-z` form does neither. Split on NUL, drop the two status columns and the space, and for a
-rename take **both** paths — the old one is a deletion the task must own too.
+A task that owns `newdir/sub/new.py` then fails its own guard, because the tree reports a path
+it never named. This is not hypothetical: the commit that introduced this file created
+`skills/crew/references/` and git reported the directory.
+
+**A known limit.** These guards diff a before snapshot against an after one, so they see a path
+appear or change state. They cannot see a builder edit a file that some earlier wave already
+modified, because its status stays `M` either way. The builder's own `Files` list is what covers
+that case, which is why an omission from it is treated as an unowned change.
 
 ## Steps
 
@@ -118,10 +137,31 @@ Each is a plan failure, not a style problem. The builder cannot ask you what you
 - a step whose deliverable is code and which shows no code
 - a name, type or signature no task defines
 
+## Header validity
+
+A header is valid only when all of these hold. Any failure stops the phase that found it.
+
+- It parses as yaml.
+- All five keys are present. `generates: []` is written, not omitted.
+- `id` matches its heading, and no two tasks share an `id`.
+- `needs` is a list of ids that exist in this plan, and the graph has no cycle.
+- `files` and `generates` are lists of strings. `verify` is a non-empty string.
+- The number of headers equals the number of `### tN` headings under `## Tasks`.
+
 ## Wave list
 
 The plan carries a `## Wave list` section, derived from every task's `needs` by topological
-sort. `crew-build` derives it again from the same headers and stops if the two disagree.
+sort. `crew-build` derives it again from the same headers and stops if the two disagree. A plan
+missing the section, or carrying one that does not parse, stops the phase — an absent list is
+not an agreement.
+
+One fenced block, one wave per line, ids in ascending order within a wave:
+
+```
+wave 0   t1
+wave 1   t2  t3  t4
+wave 2   t5
+```
 
 This is not the hand-numbering `crew-build` forbids. A hand-numbered wave is a second source of
 truth that drifts from `needs`. This one is computed from `needs`, and it exists so that two

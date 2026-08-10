@@ -102,16 +102,21 @@ Dispatch `crew-builder` by `subagent_type` alone for each fix — its model is p
 agent definition, so never pass a model parameter. One finding per dispatch when
 fixes touch different files; batch only when the same builder owns every path.
 
-Pass: the finding (location, problem, suggested fix), the owning task id if known, the task's
-brief path, worktree path, and an **explicit allowed-path list** — the `files ∪ generates` of
-the task sections involved, narrowed to the paths the finding concerns. The builder changes
-code only, no commits.
+Dispatch in fix mode, which the builder handles differently from a task. Pass: the finding
+(location, problem, suggested fix), the owning task's brief path, the plan's
+`## Global Constraints` block, the worktree path, and an **explicit allowed-path list** — the
+`files ∪ generates` of the task sections involved, narrowed to the paths the finding concerns.
+The builder changes code only, no commits.
 
-After each fix, run `git status --porcelain=v1 -z` — never the plain form, which hides
-renames and quotes non-ASCII paths, per `skills/crew/references/plan-format.md` — and compare
-against **that finding's allowed list**, not the whole plan union. Comparing against the union would pass any file the plan
-touches anywhere, which lets a one-line fix silently broaden the diff. Anything outside the
-allowed list is escalated, never kept silently.
+Snapshot `git status --porcelain=v1 -z --untracked-files=all` before each fix dispatch and
+again after, per `skills/crew/references/plan-format.md`. Compare **the delta between the two
+snapshots** against that finding's allowed list.
+
+Two traps. Never judge the whole status output: the tree is dirty from the entire build, so
+every task's files are listed and all of them read as outside a narrow allowed list. And never
+compare against the plan union instead of the finding's list — the union passes any file the
+plan touches anywhere, which lets a one-line fix silently broaden the diff. Anything outside
+the allowed list is escalated, never kept silently.
 
 After each fix, **re-review only the fix** through **only the lane that raised it**. Do
 not re-run the full diff through all three lanes for a two-line change.

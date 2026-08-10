@@ -268,9 +268,32 @@ sub/oldname.py
 ```
 
 Both paths of a rename must appear in the task's union, and a deletion is owned like any other
-change. Crew has this defect today and the new format does not introduce it. It gets fixed here
+change.
+
+`-z` is not the only missing flag. The default untracked mode reports a new file in a new
+directory as the directory:
+
+```
+$ git status --porcelain=v1 -z                        →  ?? newdir/
+$ git status --porcelain=v1 -z --untracked-files=all  →  ?? newdir/other.py
+                                                         ?? newdir/sub/new.py
+```
+
+A task owning `newdir/sub/new.py` then fails its own guard, because the tree reports a path no
+task named. The commit implementing this document hit exactly that: it created
+`skills/crew/references/` and git reported the directory. So the string is
+`git status --porcelain=v1 -z --untracked-files=all`, identical in all five readers.
+
+Crew has these defects today and the new format does not introduce them. They get fixed here
 because the format touches all five of those readers anyway, and because a guard that silently
-mismatches a renamed path is the kind of failure nobody notices until it lets something through.
+mismatches a path is the kind of failure nobody notices until it lets something through.
+
+One hole stays open. These guards compare a before snapshot against an after one, so they see a
+path appear or change state, and a file that some earlier wave already modified stays `M` when a
+later builder edits it again. Nothing in the snapshot reveals that. The builder's own `Files`
+list is the only cover, which is why an omission from it already counts as an unowned change.
+Closing it properly needs content comparison rather than status comparison, and that is a change
+to the guard mechanism rather than to the plan format.
 
 ### The brief
 
@@ -309,7 +332,7 @@ derived from `needs` at design time, and `crew-build` derives it again from the 
 stops if the two disagree.
 
 That is not the hand-numbering `crew-build:20` forbids. Hand-numbered waves are a second source
-of truth that drifts from `needs`. This list is computed from `Needs`, exists so that two
+of truth that drifts from `needs`. This list is computed from `needs`, exists so that two
 independent derivations can be compared, and is wrong exactly when the human should see it,
 which is at Gate 1 rather than at dispatch. Crew's own v2 plan already ends its task list with
 one (`.crew/crew-v2/plan.md:366`), written by hand and checked by nobody.
@@ -362,7 +385,7 @@ shows the code, and the wave list `crew-build` derives matches the one the plan 
 
 | Risk | Mitigation | Trigger to revisit |
 |---|---|---|
-| A run in flight in another repo has a JSON plan when the skills change under it | `crew-build` and `crew-pr` keep reading a `## Tasks` JSON block when they find one. Two sentences, not a migration path | Any JSON plan still being written six runs from now, at which point delete the clause |
+| A run in flight in another repo has a JSON plan when the skills change under it | None. No reader keeps a JSON fallback, and an old run has no briefs for review or babysit to pass either, so a half-measure in two of the five readers would fail later instead of sooner. Finish or abandon in-flight runs before upgrading | A run stranded by the upgrade, which would argue for a one-off converter rather than a fallback in every reader |
 | Path normalisation is now a parsing step, and four phases depend on it | The rule is stated once and cited, and every consumer compares normalised paths only | An ownership guard that passes a path it should have stopped, or stops one it should have passed |
 | Task sections with code make `plan.md` longer in bytes than the version this replaces | It removes 1,324 duplicated words and adds code where prose was describing code. The claim is that it is shorter to read, not shorter on disk | A plan the human skips reading at Gate 1 |
 | The design agent writes code that is wrong, and a builder transcribes it faithfully | Gate 1 is where wrong code is cheapest to catch, which is the point of writing it there. The critic reads the plan and can now read the code in it | Any Gate 1 that approves plan code which turns out wrong at build time |

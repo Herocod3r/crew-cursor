@@ -33,7 +33,7 @@ Bugs and security are covered by other lanes. Stay in your lane.
 |---|---|
 | Missing | A task's stated outcome has no code behind it |
 | Drifted | The code solves something adjacent to what the plan specified |
-| Unowned | Files changed that no task's `files` or `generates` claimed, read from the `yaml` headers |
+| Unowned | Files changed that no task's `files` or `generates` claimed, read from the `yaml` headers. Paths compare exactly, per `skills/crew/references/plan-format.md`. A diff omits untracked files, so say so rather than reporting clean |
 | Unconstrained | A `Global Constraints` line the diff breaks |
 | Over-built | Abstraction, configurability, or generality the plan never asked for |
 | Dead | Code nothing reaches |

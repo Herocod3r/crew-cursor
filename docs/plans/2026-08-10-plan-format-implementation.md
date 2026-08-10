@@ -469,7 +469,7 @@ verify: "! rg -qi 'tasks json' README.md && rg -q 'plan-format' README.md && rg 
 
 **Interfaces**
 
-- Consumes: the finished behaviour of t2 through t5.
+- Consumes: nothing. `needs` carries the ordering.
 - Produces: nothing. Leaf.
 
 - [ ] **Run the check first, and watch it fail**
@@ -532,8 +532,10 @@ done
 # the old contract is gone from every runtime reader
 ! rg -i 'tasks json' skills/ agents/ README.md
 
-# every `git status` call uses the -z form; the two prose prohibitions are not calls
-rg -n 'git status --porcelain' skills/ | rg -v 'porcelain=v1 -z' | rg -v 'Never read the tree with plain'
+# every `git status` call carries all three flags. the excluded lines are a prohibition
+# and two demonstrations of the wrong form, neither of which is an instruction to run it
+rg -n 'git status --porcelain' skills/ agents/ \
+  | rg -v 'untracked-files=all' | rg -v '→' | rg -v 'Never read the tree with plain'
 # expect no output
 
 # the plugin still loads

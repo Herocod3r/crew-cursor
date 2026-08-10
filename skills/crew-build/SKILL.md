@@ -32,7 +32,8 @@ and indexed from `0`. Completion is tracked per wave, not per task — there is 
 flag on individual tasks, and a wave is done only when every task in it passed verify.
 
 Compare what you derived against the plan's `## Wave list`. On any disagreement, stop and show
-both. That list was derived from the same `needs` at design time, so two derivations differing
+both. A plan with no such section, or one that does not parse, stops the phase too — an absent
+list is not an agreement. That list was derived from the same `needs` at design time, so two derivations differing
 means one of you misread the plan, and the human should see which before a builder runs.
 
 **Consume `waveCursor`.** Skip every wave with an index below it, and write the new value
@@ -41,7 +42,8 @@ half of resume — a loop that never reads it re-runs completed waves anyway.
 
 ## 2. Ownership
 
-Ownership is `files ∪ generates` for every task. Optional `generates` defaults to empty.
+Ownership is `files ∪ generates` for every task. Both keys are always written; a task with
+nothing generated carries `generates: []`, and a header missing either key is invalid.
 This union drives dispatch, the post-wave guard, and PR staging — one contract everywhere.
 
 | Rule | Why |
@@ -54,7 +56,8 @@ When serializing, run tasks in stable `id` order within the wave slot.
 
 ## 3. Dispatch
 
-Write the task's whole section verbatim to `<repoRoot>/.crew/<slug>/briefs/<id>.md` first.
+Create `<repoRoot>/.crew/<slug>/briefs/` if it is not there, then write the task's whole
+section verbatim to `briefs/<id>.md` inside it.
 
 For each task in the current wave, dispatch `crew-builder` by `subagent_type` alone. Its
 model is pinned in `agents/crew-builder.md`; never pass a model parameter.
@@ -89,12 +92,14 @@ A builder reporting PASS is a claim. You run verification yourself in step 5.
 Before dispatching a wave:
 
 ```bash
-git status --porcelain=v1 -z
+git status --porcelain=v1 -z --untracked-files=all
 ```
 
-Never the plain form: it writes a rename as `old -> new` in one entry and quotes any path
-outside ASCII. Split on NUL, drop the two status columns and the space, and for a rename take
-both paths. Full rules in `skills/crew/references/plan-format.md`.
+Every flag matters and the string is the same in all five readers. Without `-z` a rename is one
+entry with an arrow and non-ASCII paths come back quoted; without `--untracked-files=all` a new
+file in a new directory is reported as the directory, so the task that owns the file fails its
+own guard. Split on NUL, drop the two status columns and the space, and for a rename take both
+paths. Full rules in `skills/crew/references/plan-format.md`.
 
 Save the snapshot. After every builder in the wave finishes, snapshot again.
 
