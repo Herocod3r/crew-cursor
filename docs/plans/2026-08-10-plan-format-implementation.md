@@ -449,7 +449,19 @@ Expect FAIL: the frontmatter description says "from a crew plan's Tasks JSON".
       work backward from the goal and a file map alone cannot answer that.
 
 - [ ] **`crew-conformance` findings table.** The `Unowned` row now says: files changed that no
-      task's `files` or `generates` claimed, read from the yaml headers.
+      task's `files` or `generates` claimed, read from the yaml headers, compared exactly per
+      `skills/crew/references/plan-format.md`, and with a note that a diff omits untracked
+      files so absence of evidence is reported rather than counted as clean.
+
+- [ ] **Add an `Unconstrained` row to the same table**
+
+```markdown
+| Unconstrained | A `Global Constraints` line the diff breaks |
+```
+
+`Global Constraints` is new to the schema in t1, and without this row nothing reads it. The
+lane that judges a diff against the approved plan is where a constraint the plan states and the
+diff breaks should surface.
 
 - [ ] **Run the check.** Expect PASS on all five clauses, including both model pins.
 
@@ -463,9 +475,17 @@ needs: [t2, t3, t4, t5]
 files:
   - README.md
   - docs/design.md
+  - docs/plans/2026-08-10-plan-format-design.md          # ships as written
+  - docs/plans/2026-08-10-plan-format-example.md         # ships as written
+  - docs/plans/2026-08-10-plan-format-implementation.md  # this file
 generates: []
-verify: "! rg -qi 'tasks json' README.md && rg -q 'plan-format' README.md && rg -q '2026-08-10' docs/design.md"
+verify: "! rg -qi 'tasks json' README.md && rg -q 'plan-format' README.md && rg -q '2026-08-10' docs/design.md && ls docs/plans/2026-08-10-plan-format-{design,example,implementation}.md"
 ```
+
+The last three are already written and are not edited by this task. They are listed because
+every changed path must sit in some task's union or the PR guard stops the commit, and these
+three are in the change. A planning artifact that ships with its own work still has to be owned
+by something.
 
 **Interfaces**
 

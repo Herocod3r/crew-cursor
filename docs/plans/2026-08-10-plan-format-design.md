@@ -130,6 +130,11 @@ What the prose used to carry, superpowers puts in two lines of header (`writing-
 and takes `## Global Constraints` with them, which is the list of project-wide requirements with
 exact values copied verbatim that binds every task.
 
+`Global Constraints` needs a reader, or it is a section the plan writes and nothing enforces.
+`crew-conformance` already judges a diff against the approved plan, so it gains one finding
+kind, `Unconstrained`: a constraint the plan states and the diff breaks. That is the whole of
+the new checking; the other lanes are unchanged.
+
 One reader depends on more than the tasks and has to keep depending on it. `crew-conformance`
 reads `Goal`, `Approach` and `Tasks` (`:19`) and is told to work backward from the goal, because
 every task can be satisfied while the thing as a whole does not work (`:21-23`). A file map does
