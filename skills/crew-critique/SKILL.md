@@ -13,8 +13,9 @@ plan gets a passing grade. The critic is a different family on purpose.
 ## 1. Dispatch
 
 Dispatch the `crew-critic` subagent over `plan.md`, by `subagent_type` alone. Never pass a
-model parameter — the Task enum holds only `composer-2.5-fast` and
-`claude-opus-5-thinking-max-fast`, so naming the critic's model gets it rejected.
+model parameter. The Task enum is a short list that changes without notice, and a slug it does
+not hold is rejected; `agents/crew-critic.md` accepts any slug `cursor-agent --list-models`
+offers. Naming the model at dispatch can only narrow what the pin already gets right.
 
 The model comes from `agents/crew-critic.md`, which works **only because intake symlinked
 the agents into `.cursor/agents/`**. Plugin-bundled agents silently ignore `model`, so
@@ -49,7 +50,7 @@ Two conditions, both required, before shelling out. The subagent dispatch failed
 same-family subprocess is strictly worse than the subagent you just failed to get.
 
 ```bash
-cursor-agent -p --model gpt-5.5-extra-high-fast --plan --auto-review --trust \
+cursor-agent -p --model gpt-5.6-sol-max-fast --plan --auto-review --trust \
   --workspace "$WORKTREE" "$(cat "$CRITIC_PROMPT")"
 ```
 
@@ -66,7 +67,7 @@ strongest. Independence comes from a different *model family*, not from Codex, a
 **Fallback**, in order. Only on genuine failure — a rejected model parameter is a dispatch
 bug, not an unavailable model.
 
-1. `cursor-agent --model gpt-5.5-extra-high-fast`
+1. `cursor-agent --model gpt-5.6-sol-max-fast`
 2. `cursor-agent --model` with any available top-effort model from a different family
 3. A Task subagent, which is same-family — warn the human explicitly and record the
    critique as weakened at Gate 1

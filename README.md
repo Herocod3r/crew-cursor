@@ -254,7 +254,7 @@ Size gates only research and critique. Every run builds, reviews, and merges.
 |---|---|---|
 | Architect | yours | Holds the conversation and the code. Never delegated. |
 | `crew-retriever` | `composer-2.5-fast` | Retrieval breadth, not reasoning |
-| `crew-critic` | `gpt-5.5-extra-high-fast` | Top effort, 1M context, and a different family from the architect. Same-family validation is how bad plans pass. |
+| `crew-critic` | `gpt-5.6-sol-max-fast` | Newest generation, top effort, fast serving, and a different family from the architect. Same-family validation is how bad plans pass. |
 | `crew-builder` | `composer-2.5-fast` | The plan is locked; execution is mechanical |
 | `crew-conformance` | `claude-opus-5-thinking-high` | Judging a diff against a plan is judgment, and a different family from the builders |
 

@@ -39,6 +39,12 @@ Do not "fix" either.
 | Two files per run | One human-readable, one machine-readable. | 5 artifacts + evidence dir; zero artifacts |
 | Selective scout | Carried over from the predecessor unchanged. It was correct. | Fixed fan-out |
 | Critic on `gpt-5.5-extra-high-fast` | Newest generation, top effort, 1M context, different family. Fast serving infrastructure: same model, lower latency. Verified available. | Codex 5.3 xhigh (older gen); non-fast variant, which cost 128-169s per round in testing |
+
+> **Amended 2026-08-11.** The critic moved to `gpt-5.6-sol-max-fast`, the same reasoning one
+> generation on: newest, top effort, fast serving, different family. Verified by running
+> `cursor-agent -p --model gpt-5.6-sol-max-fast`, which answered and reported GPT. The 1M claim
+> above is not carried over; `--list-models` labels the 1M context on the non-fast variants and
+> this pin, like the one it replaces, is a `-fast`.
 | Skills only, no commands | Cursor command arg-passing undocumented; Cursor migrates commands→skills. | `commands/*.md` |
 | Two human gates | Go-ahead on plan, review before PR. | Gates after intake/scout/merge |
 | crew never creates or deletes worktrees | The human runs crew from a worktree they own. Intake verifies, then stops if not. Removes the 25-cap risk and the create/teardown asymmetry outright. | Worktree at intake; crew-managed teardown at retro |
